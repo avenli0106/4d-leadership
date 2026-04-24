@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # 数据收集 API 服务
   api:
     build: .
     container_name: d4-collector
@@ -10,21 +9,3 @@ services:
       - "5000:5000"
     volumes:
       - ./data:/app/data
-    networks:
-      - d4-network
-
-  # natfrp 内网穿透（国内免费，无需域名）
-  tunnel:
-    image: natfrp.com/launcher
-    container_name: d4-tunnel
-    restart: unless-stopped
-    network_mode: host
-    environment:
-      - NATFRP_TOKEN=${NATFRP_TOKEN}
-      - NATFRP_REMOTE=${NATFRP_REMOTE}
-    volumes:
-      - ./natfrp:/run
-
-networks:
-  d4-network:
-    driver: bridge

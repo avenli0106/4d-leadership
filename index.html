@@ -360,45 +360,48 @@ function renderFullResult(){
       </p>
     </div>`;
 
-  // 发送数据到 Google Sheets
+  // 发送数据
   const submitStatus = document.createElement('div');
   submitStatus.id = 'submitStatus';
   submitStatus.style.cssText = 'text-align:center;margin-top:16px;font-size:13px;color:#888;min-height:20px;';
   submitStatus.textContent = '正在保存结果...';
   
+  // 飞书群机器人 Webhook（国内服务，微信和任何浏览器都不会拦截）
+  const FEISHU_WEBHOOK = 'https://open.feishu.cn/open-apis/bot/v2/hook/d7970ce0-1aab-437b-80f9-c7b7c8ca6aa5';
+  
+  // 构建飞书消息
+  var feishuText = '【4D天性测评结果】\n' +
+    '姓名：' + name + '\n' +
+    '主导色彩：' + d.name + '·' + d.type + '（' + d.en + '）\n\n' +
+    '四项得分：\n' +
+    '绿色（培养型）：' + g + '分\n' +
+    '黄色（包融型）：' + y + '分\n' +
+    '蓝色（展望型）：' + b + '分\n' +
+    '橙色（指导型）：' + o + '分\n\n' +
+    '基础维度：\n' +
+    '情感(F)：' + F + ' | 逻辑(T)：' + T + '\n' +
+    '直觉(N)：' + N + ' | 感觉(S)：' + S;
+  
+  // 主通道：飞书群机器人（最可靠，任何浏览器都能用）
+  fetch(FEISHU_WEBHOOK, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      msg_type: 'text',
+      content: {text: feishuText}
+    })
+  }).then(function(res) {
+    console.log('[4D测评] 飞书发送成功');
+    submitStatus.textContent = '结果已保存';
+    submitStatus.style.color = '#2d9d5d';
+  }).catch(function(err) {
+    console.error('[4D测评] 飞书发送失败:', err);
+    submitStatus.textContent = '保存失败，请复制下方结果手动发送';
+    submitStatus.style.color = '#c45c5c';
+  });
+  
+  // 备用通道：Google Sheets（向后兼容，静默发送不阻塞主流程）
   if (SHEET_URL) {
-    console.log('[4D测评] 正在提交数据到:', SHEET_URL);
-    console.log('[4D测评] 提交内容:', {name,F,N,T,S,scores:{green:g,yellow:y,blue:b,orange:o},mainColor:d.name+'·'+d.type});
-    
-    // 双通道发送：
-    // 通道1 - 图片ping（GET方式，浏览器几乎不会拦截图片加载，数据通过doGet写入）
-    try {
-      var params = new URLSearchParams();
-      params.set('username', name);
-      params.set('F', String(F));
-      params.set('N', String(N));
-      params.set('T', String(T));
-      params.set('S', String(S));
-      params.set('green', String(g));
-      params.set('yellow', String(y));
-      params.set('blue', String(b));
-      params.set('orange', String(o));
-      params.set('mainColor', d.name + '·' + d.type);
-      var pingUrl = SHEET_URL + '?' + params.toString();
-      console.log('[4D测评] 通道1-图片ping:', pingUrl);
-      var img = new Image();
-      img.src = pingUrl;
-    } catch(e) {
-      console.error('[4D测评] 图片ping异常:', e);
-    }
-    
-    // 通道2 - fetch POST（给用户即时反馈，但某些浏览器会拦截导致挂起，加5秒超时）
-    var controller = null, timeoutId = null;
-    try {
-      controller = new AbortController();
-      timeoutId = setTimeout(function(){ controller.abort(); }, 5000);
-    } catch(e) { /* 老浏览器不支持AbortController，忽略 */ }
-    
     fetch(SHEET_URL, {
       method: 'POST',
       mode: 'no-cors',
@@ -409,32 +412,8 @@ function renderFullResult(){
         scores: {green: g, yellow: y, blue: b, orange: o},
         mainColor: d.name + '·' + d.type,
         timestamp: new Date().toISOString()
-      }),
-      signal: controller ? controller.signal : undefined
-    }).then(() => {
-      if (timeoutId) clearTimeout(timeoutId);
-      console.log('[4D测评] 通道2-fetch成功');
-      if (isWechat) {
-        submitStatus.textContent = '已尝试保存（微信内可能受限，建议用浏览器打开）';
-        submitStatus.style.color = '#c99500';
-      } else {
-        submitStatus.textContent = '结果已保存';
-        submitStatus.style.color = '#2d9d5d';
-      }
-    }).catch(err => {
-      if (timeoutId) clearTimeout(timeoutId);
-      console.error('[4D测评] 通道2-fetch失败:', err);
-      // AbortError=超时挂起，数据可能已通过通道1送达
-      if (err.name === 'AbortError') {
-        submitStatus.textContent = '响应较慢，数据可能已保存，请稍后查看表单确认';
-        submitStatus.style.color = '#c99500';
-      } else {
-        submitStatus.textContent = '保存失败，请复制下方结果手动发送';
-        submitStatus.style.color = '#c45c5c';
-      }
-    });
-  } else {
-    submitStatus.textContent = '未配置数据收集地址';
+      })
+    }).catch(function(){});
   }
 
   document.getElementById('result').classList.add('show');

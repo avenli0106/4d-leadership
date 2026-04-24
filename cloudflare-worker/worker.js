@@ -1,17 +1,17 @@
 /**
  * 4D天性测评 - Cloudflare Worker 后端
- * 
+ *
  * 功能：
- * - POST /api/submit    接收测评结果，存入 D1，推送飞书
+ * - POST /api/submit    接收测评结果，存入 D1
+ * - POST /api/import    批量导入（从飞书消息解析）
  * - GET  /api/results   查询所有结果（JSON）
- * - GET  /admin         内置管理页面（查看数据+下载CSV）
+ * - GET  /admin         内置管理页面（查看数据+下载CSV+导入飞书消息）
  * - GET  /api/export    直接下载 CSV
  * - GET  /health        健康检查
- * 
+ *
  * 环境变量（在 Cloudflare 控制台设置）：
- * - FEISHU_WEBHOOK : 飞书群机器人 Webhook URL
  * - ADMIN_KEY      : 管理页面访问密码
- * 
+ *
  * D1 绑定：
  * - 变量名：DB
  */
@@ -21,7 +21,6 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // CORS 支持（GitHub Pages 跨域调用）
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -46,41 +45,32 @@ export default {
         return json({ success: false, error: 'Invalid JSON' }, 400);
       }
 
-      const name = (data.username || '匿名').trim().slice(0, 50);
-      const f = parseInt(data.F) || 0;
-      const t = parseInt(data.T) || 0;
-      const n = parseInt(data.N) || 0;
-      const s = parseInt(data.S) || 0;
-      const scores = data.scores || {};
-      const g = parseInt(scores.green) || (f + n);
-      const y = parseInt(scores.yellow) || (f + s);
-      const b = parseInt(scores.blue) || (t + n);
-      const o = parseInt(scores.orange) || (t + s);
-      const primaryColor = (data.mainColor || '').split('·')[0]?.trim() || '';
-      const primaryType = (data.mainColor || '').split('·')[1]?.trim() || '';
-      const ip = request.headers.get('cf-connecting-ip') || 'unknown';
-      const ua = request.headers.get('user-agent')?.slice(0, 200) || '';
-
-      try {
-        // 写入 D1
-        await env.DB.prepare(`
-          INSERT INTO results 
-          (name, f, t, n, s, green, yellow, blue, orange, primary_color, primary_type, ip, user_agent)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(name, f, t, n, s, g, y, b, o, primaryColor, primaryType, ip, ua).run();
-      } catch (e) {
-        console.error('D1 insert error:', e);
-        return json({ success: false, error: 'Database error' }, 500);
+      const result = await saveResult(env.DB, data);
+      if (result.error) {
+        return json({ success: false, error: result.error }, 500);
       }
-
-      // 异步推送飞书（不阻塞响应）
-      if (env.FEISHU_WEBHOOK) {
-        ctx.waitUntil(
-          sendFeishu(env.FEISHU_WEBHOOK, { name, f, t, n, s, g, y, b, o, primaryColor, primaryType })
-        );
-      }
-
       return json({ success: true, message: 'Saved' });
+    }
+
+    // ==================== 批量导入 ====================
+    if (path === '/api/import' && request.method === 'POST') {
+      if (!checkAdminKey(url, env)) {
+        return json({ error: 'Unauthorized' }, 401);
+      }
+      let data;
+      try {
+        data = await request.json();
+      } catch (e) {
+        return json({ success: false, error: 'Invalid JSON' }, 400);
+      }
+
+      const items = data.items || [];
+      let inserted = 0;
+      for (const item of items) {
+        const result = await saveResult(env.DB, item);
+        if (!result.error) inserted++;
+      }
+      return json({ success: true, inserted, total: items.length });
     }
 
     // ==================== 查询结果（JSON）====================
@@ -142,10 +132,38 @@ export default {
       }
     }
 
-    // 404
     return json({ error: 'Not found' }, 404);
   }
 };
+
+// ==================== 数据写入 ====================
+
+async function saveResult(db, data) {
+  const name = (data.username || '匿名').trim().slice(0, 50);
+  const f = parseInt(data.F) || 0;
+  const t = parseInt(data.T) || 0;
+  const n = parseInt(data.N) || 0;
+  const s = parseInt(data.S) || 0;
+  const scores = data.scores || {};
+  const g = parseInt(scores.green) || (f + n);
+  const y = parseInt(scores.yellow) || (f + s);
+  const b = parseInt(scores.blue) || (t + n);
+  const o = parseInt(scores.orange) || (t + s);
+  const primaryColor = (data.mainColor || '').split('·')[0]?.trim() || '';
+  const primaryType = (data.mainColor || '').split('·')[1]?.trim() || '';
+
+  try {
+    await db.prepare(`
+      INSERT INTO results
+      (name, f, t, n, s, green, yellow, blue, orange, primary_color, primary_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(name, f, t, n, s, g, y, b, o, primaryColor, primaryType).run();
+    return { success: true };
+  } catch (e) {
+    console.error('D1 insert error:', e);
+    return { error: e.message };
+  }
+}
 
 // ==================== 工具函数 ====================
 
@@ -161,39 +179,15 @@ function checkAdminKey(url, env) {
   return key && key === env.ADMIN_KEY;
 }
 
-async function sendFeishu(webhook, data) {
-  const text = `【4D天性测评结果】\n` +
-    `姓名：${data.name}\n` +
-    `主导色彩：${data.primaryColor}·${data.primaryType}\n\n` +
-    `四项得分：\n` +
-    `绿色（培养型）：${data.g}分\n` +
-    `黄色（包融型）：${data.y}分\n` +
-    `蓝色（展望型）：${data.b}分\n` +
-    `橙色（指导型）：${data.o}分\n\n` +
-    `基础维度：\n` +
-    `情感(F)：${data.f} | 逻辑(T)：${data.t}\n` +
-    `直觉(N)：${data.n} | 感觉(S)：${data.s}`;
-
-  try {
-    await fetch(webhook, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ msg_type: 'text', content: { text } }),
-    });
-  } catch (e) {
-    console.error('Feishu push failed:', e);
-  }
-}
-
 function buildCSV(rows) {
-  const headers = ['ID', '姓名', '情感F', '逻辑T', '直觉N', '感觉S', '绿色', '黄色', '蓝色', '橙色', '主导色彩', '主导类型', 'IP', '提交时间'];
+  const headers = ['ID', '姓名', '情感F', '逻辑T', '直觉N', '感觉S', '绿色', '黄色', '蓝色', '橙色', '主导色彩', '主导类型', '提交时间'];
   let csv = '\uFEFF' + headers.join(',') + '\n';
   for (const r of rows) {
     csv += [
       r.id, csvQuote(r.name), r.f, r.t, r.n, r.s,
       r.green, r.yellow, r.blue, r.orange,
       csvQuote(r.primary_color), csvQuote(r.primary_type),
-      r.ip, r.created_at
+      r.created_at
     ].join(',') + '\n';
   }
   return csv;
@@ -205,6 +199,19 @@ function csvQuote(s) {
     return '"' + s.replace(/"/g, '""') + '"';
   }
   return s;
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatTime(s) {
+  if (!s) return '-';
+  try {
+    const d = new Date(s);
+    return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  } catch (e) { return s; }
 }
 
 // ==================== 管理页面 HTML ====================
@@ -243,14 +250,13 @@ function login(){var k=document.getElementById('key').value;if(!k)return;locatio
 }
 
 function adminHTML(rows, key) {
-  // 统计
   const total = rows.length;
   const colorMap = { '绿色': 'green', '黄色': 'yellow', '蓝色': 'blue', '橙色': 'orange' };
   const colorCount = { green: 0, yellow: 0, blue: 0, orange: 0 };
   for (const r of rows) {
     const c = (r.primary_color || '').trim();
-    const key = colorMap[c];
-    if (key && colorCount[key] !== undefined) colorCount[key]++;
+    const k = colorMap[c];
+    if (k && colorCount[k] !== undefined) colorCount[k]++;
   }
 
   const colorNames = { green: '绿色·培养型', yellow: '黄色·包融型', blue: '蓝色·展望型', orange: '橙色·指导型' };
@@ -292,6 +298,7 @@ h1{font-size:22px}
 .btn{padding:10px 20px;border-radius:10px;border:none;font-size:14px;cursor:pointer;transition:opacity .2s;text-decoration:none;display:inline-block}
 .btn-primary{background:#2d2a33;color:#fff}
 .btn-secondary{background:#e8e8ed;color:#333}
+.btn-success{background:#2d9d5d;color:#fff}
 .btn:hover{opacity:.88}
 
 .stats{background:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 2px 12px rgba(0,0,0,0.04)}
@@ -300,7 +307,15 @@ h1{font-size:22px}
 .stat-item{background:#f8f8fa;border-radius:10px;padding:14px 16px}
 .stat-bar{height:4px;border-radius:2px;margin-bottom:10px;transition:width .6s ease}
 .stat-text{display:flex;justify-content:space-between;font-size:13px}
-.total{font-size:13px;color:#888;margin-top:12px}
+
+.import-box{background:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 2px 12px rgba(0,0,0,0.04)}
+.import-box h2{font-size:16px;margin-bottom:12px;color:#5e5a66}
+.import-box p{color:#888;font-size:13px;margin-bottom:12px}
+textarea{width:100%;padding:12px;border-radius:10px;border:1.5px solid #eee;font-size:13px;resize:vertical;outline:none;font-family:inherit;line-height:1.7}
+textarea:focus{border-color:#a090b8}
+.import-actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+#previewTable{margin-top:16px;overflow-x:auto}
+#importStatus{font-size:13px;color:#2d9d5d;margin-top:8px;min-height:20px}
 
 .table-wrap{background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.04);overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
@@ -327,6 +342,32 @@ tr:hover{background:#f8f8fa}
     </div>
   </header>
 
+  <div class="import-box">
+    <h2>从飞书消息导入</h2>
+    <p>把飞书群里的测评消息批量粘贴到下方（多条消息之间至少空一行），解析确认后导入数据库。</p>
+    <textarea id="importArea" rows="8" placeholder="粘贴飞书群消息...
+
+【4D天性测评结果】
+姓名：张三
+主导色彩：蓝色·展望型（Visioning）
+
+四项得分：
+绿色（培养型）：3分
+黄色（包融型）：2分
+蓝色（展望型）：14分
+橙色（指导型）：7分
+
+基础维度：
+情感(F)：0 | 逻辑(T)：7
+直觉(N)：7 | 感觉(S)：0"></textarea>
+    <div class="import-actions">
+      <button class="btn btn-secondary" onclick="parseImport()">解析预览</button>
+      <button class="btn btn-success" onclick="doImport()">确认导入</button>
+    </div>
+    <div id="importStatus"></div>
+    <div id="previewTable"></div>
+  </div>
+
   <div class="stats">
     <h2>数据统计（共 ${total} 人）</h2>
     <div class="stat-grid">${statsHTML}</div>
@@ -347,19 +388,99 @@ tr:hover{background:#f8f8fa}
     </table>`}
   </div>
 </div>
+
+<script>
+var importItems = [];
+var apiKey = '${encodeURIComponent(key || '')}';
+
+function parseImport() {
+  var text = document.getElementById('importArea').value;
+  var blocks = text.split(/\\n{2,}/).map(function(b){return b.trim()}).filter(function(b){return b.indexOf('【4D天性测评结果】') !== -1});
+  importItems = [];
+
+  for (var i = 0; i < blocks.length; i++) {
+    var block = blocks[i];
+    var item = {};
+
+    var nameMatch = block.match(/姓名：(.+)/);
+    if (nameMatch) item.username = nameMatch[1].trim();
+
+    var colorMatch = block.match(/主导色彩：(.+?)（/);
+    if (colorMatch) item.mainColor = colorMatch[1].trim();
+
+    var greenMatch = block.match(/绿色（培养型）：(\\d+)分/);
+    var yellowMatch = block.match(/黄色（包融型）：(\\d+)分/);
+    var blueMatch = block.match(/蓝色（展望型）：(\\d+)分/);
+    var orangeMatch = block.match(/橙色（指导型）：(\\d+)分/);
+
+    if (greenMatch) item.green = parseInt(greenMatch[1]);
+    if (yellowMatch) item.yellow = parseInt(yellowMatch[1]);
+    if (blueMatch) item.blue = parseInt(blueMatch[1]);
+    if (orangeMatch) item.orange = parseInt(orangeMatch[1]);
+
+    var dimMatch = block.match(/情感\\(F\\)：(\\d+)\\s*\\|\\s*逻辑\\(T\\)：(\\d+)/);
+    if (dimMatch) { item.F = parseInt(dimMatch[1]); item.T = parseInt(dimMatch[2]); }
+
+    var dimMatch2 = block.match(/直觉\\(N\\)：(\\d+)\\s*\\|\\s*感觉\\(S\\)：(\\d+)/);
+    if (dimMatch2) { item.N = parseInt(dimMatch2[1]); item.S = parseInt(dimMatch2[2]); }
+
+    if (item.username && item.mainColor) {
+      item.scores = { green: item.green || 0, yellow: item.yellow || 0, blue: item.blue || 0, orange: item.orange || 0 };
+      importItems.push(item);
+    }
+  }
+
+  var status = document.getElementById('importStatus');
+  var preview = document.getElementById('previewTable');
+
+  if (importItems.length === 0) {
+    status.textContent = '未解析到任何测评结果';
+    status.style.color = '#c45c5c';
+    preview.innerHTML = '';
+    return;
+  }
+
+  status.textContent = '共解析到 ' + importItems.length + ' 条，点击「确认导入」写入数据库';
+  status.style.color = '#2d9d5d';
+
+  var html = '<table><thead><tr><th>姓名</th><th>主导色彩</th><th>F</th><th>T</th><th>N</th><th>S</th><th>绿</th><th>黄</th><th>蓝</th><th>橙</th></tr></thead><tbody>';
+  for (var j = 0; j < importItems.length; j++) {
+    var it = importItems[j];
+    html += '<tr><td>' + (it.username || '-') + '</td><td>' + (it.mainColor || '-') + '</td><td>' + (it.F || 0) + '</td><td>' + (it.T || 0) + '</td><td>' + (it.N || 0) + '</td><td>' + (it.S || 0) + '</td><td>' + (it.green || 0) + '</td><td>' + (it.yellow || 0) + '</td><td>' + (it.blue || 0) + '</td><td>' + (it.orange || 0) + '</td></tr>';
+  }
+  html += '</tbody></table>';
+  preview.innerHTML = html;
+}
+
+function doImport() {
+  if (importItems.length === 0) {
+    alert('请先点击「解析预览」');
+    return;
+  }
+  var status = document.getElementById('importStatus');
+  status.textContent = '正在导入...';
+  status.style.color = '#888';
+
+  fetch('/api/import?key=' + apiKey, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ items: importItems })
+  }).then(function(res){return res.json();})
+  .then(function(data){
+    if (data.success) {
+      status.textContent = '导入成功：' + data.inserted + '/' + data.total + ' 条';
+      status.style.color = '#2d9d5d';
+      setTimeout(function(){location.reload();}, 1500);
+    } else {
+      status.textContent = '导入失败：' + (data.error || '未知错误');
+      status.style.color = '#c45c5c';
+    }
+  }).catch(function(err){
+    status.textContent = '导入失败：' + err.message;
+    status.style.color = '#c45c5c';
+  });
+}
+</script>
 </body>
 </html>`;
-}
-
-function escapeHtml(s) {
-  if (!s) return '';
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-function formatTime(s) {
-  if (!s) return '-';
-  try {
-    const d = new Date(s);
-    return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-  } catch (e) { return s; }
 }

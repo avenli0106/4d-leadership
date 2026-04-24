@@ -318,8 +318,16 @@ function showResult(){
       </p>
     </div>`;
 
-  // 发送数据到 Google Sheets（静默提交，失败不影响用户体验）
+  // 发送数据到 Google Sheets
+  const submitStatus = document.createElement('div');
+  submitStatus.id = 'submitStatus';
+  submitStatus.style.cssText = 'text-align:center;margin-top:16px;font-size:13px;color:#888;min-height:20px;';
+  submitStatus.textContent = '正在保存结果...';
+  
   if (SHEET_URL) {
+    console.log('[4D测评] 正在提交数据到:', SHEET_URL);
+    console.log('[4D测评] 提交内容:', {F,N,T,S,scores:{green:g,yellow:y,blue:b,orange:o},mainColor:d.name+'·'+d.type});
+    
     fetch(SHEET_URL, {
       method: 'POST',
       mode: 'no-cors',
@@ -330,10 +338,21 @@ function showResult(){
         mainColor: d.name + '·' + d.type,
         timestamp: new Date().toISOString()
       })
-    }).catch(() => {});
+    }).then(() => {
+      console.log('[4D测评] fetch 已发出');
+      submitStatus.textContent = '结果已保存';
+      submitStatus.style.color = '#2d9d5d';
+    }).catch(err => {
+      console.error('[4D测评] fetch 失败:', err);
+      submitStatus.textContent = '保存失败，请检查网络或刷新重试';
+      submitStatus.style.color = '#c45c5c';
+    });
+  } else {
+    submitStatus.textContent = '未配置数据收集地址';
   }
 
   document.getElementById('result').classList.add('show');
+  document.getElementById('mainResult').appendChild(submitStatus);
   window.scrollTo({top:0,behavior:'smooth'});
 }
 

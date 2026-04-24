@@ -111,6 +111,10 @@ body{
 
 <div class="container">
 
+<div id="wechatTip" style="display:none;background:#fff3e0;border:1px solid #ffc107;border-radius:12px;padding:14px 18px;margin:0 0 20px;text-align:center;font-size:14px;color:#856404;">
+  <b>⚠️ 微信内打开</b>：数据可能无法保存。请点击右上角「···」→「在浏览器中打开」
+</div>
+
 <div class="header" id="pageHeader">
   <h1>4D 天性测评</h1>
   <div class="subtitle">NASA 卓越团队系统 · 找回你的本色</div>
@@ -199,6 +203,7 @@ const portraits={
 // 部署指南见同目录下的 google-apps-script.js 文件
 // ========================================
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbyshfKV7SL5fgQTOlm34QMCNaPm8FjITBMMWyKctommKnggqkZb9xe3jnGFQZuxaTcR/exec';
+const isWechat = /MicroMessenger/i.test(navigator.userAgent);
 
 let current=0;
 let answers=new Array(14).fill(null);
@@ -362,6 +367,34 @@ function renderFullResult(){
     console.log('[4D测评] 正在提交数据到:', SHEET_URL);
     console.log('[4D测评] 提交内容:', {name,F,N,T,S,scores:{green:g,yellow:y,blue:b,orange:o},mainColor:d.name+'·'+d.type});
     
+    // 双保险发送：微信内用图片ping绕过限制，普通浏览器用fetch
+    if (isWechat) {
+      try {
+        var params = new URLSearchParams();
+        params.set('username', name);
+        params.set('F', String(F));
+        params.set('N', String(N));
+        params.set('T', String(T));
+        params.set('S', String(S));
+        params.set('green', String(g));
+        params.set('yellow', String(y));
+        params.set('blue', String(b));
+        params.set('orange', String(o));
+        params.set('mainColor', d.name + '·' + d.type);
+        var pingUrl = SHEET_URL + '?' + params.toString();
+        console.log('[4D测评] 微信内尝试图片ping:', pingUrl);
+        var img = new Image();
+        img.onload = function() { console.log('[4D测评] 图片ping onload'); };
+        img.onerror = function() { console.log('[4D测评] 图片ping onerror（请求已发出，忽略图片解析错误）'); };
+        img.src = pingUrl;
+        submitStatus.textContent = '已尝试发送（微信内可能受限，建议用浏览器打开）';
+        submitStatus.style.color = '#c99500';
+      } catch(e) {
+        console.error('[4D测评] 图片ping失败:', e);
+      }
+    }
+    
+    // 同时发起fetch（普通浏览器能成功，微信内可能失败但不阻塞）
     fetch(SHEET_URL, {
       method: 'POST',
       mode: 'no-cors',
@@ -374,13 +407,17 @@ function renderFullResult(){
         timestamp: new Date().toISOString()
       })
     }).then(() => {
-      console.log('[4D测评] fetch 已发出');
-      submitStatus.textContent = '结果已保存';
-      submitStatus.style.color = '#2d9d5d';
+      console.log('[4D测评] fetch 成功');
+      if (!isWechat) {
+        submitStatus.textContent = '结果已保存';
+        submitStatus.style.color = '#2d9d5d';
+      }
     }).catch(err => {
       console.error('[4D测评] fetch 失败:', err);
-      submitStatus.textContent = '保存失败，请检查网络或刷新重试';
-      submitStatus.style.color = '#c45c5c';
+      if (!isWechat) {
+        submitStatus.textContent = '保存失败，请检查网络或刷新重试';
+        submitStatus.style.color = '#c45c5c';
+      }
     });
   } else {
     submitStatus.textContent = '未配置数据收集地址';
@@ -389,6 +426,12 @@ function renderFullResult(){
   document.getElementById('result').classList.add('show');
   document.getElementById('mainResult').appendChild(submitStatus);
   window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// 页面加载时检测微信并显示提示
+if (isWechat) {
+  var tip = document.getElementById('wechatTip');
+  if (tip) tip.style.display = 'block';
 }
 
 renderQuestion();

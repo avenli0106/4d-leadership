@@ -12,6 +12,16 @@
  * 8. 复制新的 Web 应用 URL（如果URL变了，需要告诉我更新）
  */
 
+function ensureHeaders(sheet) {
+  if (sheet.getRange(1, 1).getValue() === '') {
+    sheet.getRange(1, 1, 1, 11).setValues([[
+      '提交时间', '用户名', '情感(F)', '直觉(N)', '逻辑(T)', '感觉(S)',
+      '绿色得分', '黄色得分', '蓝色得分', '橙色得分', '主导颜色'
+    ]]);
+    sheet.getRange(1, 1, 1, 11).setFontWeight('bold');
+  }
+}
+
 function doPost(e) {
   try {
     var jsonString = e.postData ? e.postData.contents : '{}';
@@ -19,15 +29,7 @@ function doPost(e) {
     
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getActiveSheet();
-    
-    // 首次运行时写入表头
-    if (sheet.getRange(1, 1).getValue() === '') {
-      sheet.getRange(1, 1, 1, 11).setValues([[
-        '提交时间', '用户名', '情感(F)', '直觉(N)', '逻辑(T)', '感觉(S)',
-        '绿色得分', '黄色得分', '蓝色得分', '橙色得分', '主导颜色'
-      ]]);
-      sheet.getRange(1, 1, 1, 11).setFontWeight('bold');
-    }
+    ensureHeaders(sheet);
     
     var scores = data.scores || {};
     
@@ -54,6 +56,36 @@ function doPost(e) {
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput(JSON.stringify({status: 'ok', message: '4D数据收集服务运行中'}))
-    .setMimeType(ContentService.MimeType.JSON);
+  try {
+    var p = e.parameter || {};
+    // 如果有数据参数，说明是微信内的图片ping方式提交
+    if (p.username !== undefined || p.F !== undefined || p.mainColor !== undefined) {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var sheet = ss.getActiveSheet();
+      ensureHeaders(sheet);
+      
+      sheet.appendRow([
+        new Date(),
+        p.username || '匿名',
+        Number(p.F) || 0,
+        Number(p.N) || 0,
+        Number(p.T) || 0,
+        Number(p.S) || 0,
+        Number(p.green) || 0,
+        Number(p.yellow) || 0,
+        Number(p.blue) || 0,
+        Number(p.orange) || 0,
+        p.mainColor || ''
+      ]);
+      // 返回简单文本，避免图片解析报错
+      return ContentService.createTextOutput('ok')
+        .setMimeType(ContentService.MimeType.TEXT);
+    }
+    // 没有数据参数，返回健康检查
+    return ContentService.createTextOutput(JSON.stringify({status: 'ok', message: '4D数据收集服务运行中'}))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService.createTextOutput('error: ' + err.toString())
+      .setMimeType(ContentService.MimeType.TEXT);
+  }
 }

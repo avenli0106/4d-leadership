@@ -390,11 +390,14 @@ function renderFullResult(){
     });
   }
 
-  if (hasCF) {
-    var ctrl = new AbortController();
-    var t = setTimeout(function() { ctrl.abort(); }, 5000);
+  var isWechat = /MicroMessenger/i.test(navigator.userAgent);
+
+  if (isWechat) {
+    // 微信环境：workers.dev 被拦截，Worker 请求会挂起超时，直接先发飞书
+    sendFeishu('需手动导入', '已通知飞书备份');
+  } else if (hasCF) {
+    // 浏览器环境：正常请求 Worker，成功则由 Worker 发飞书 [已同步]
     fetch(CF_API + '/api/submit', {
-      signal: ctrl.signal,
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -405,10 +408,7 @@ function renderFullResult(){
         source: 'web',
         timestamp: new Date().toISOString()
       })
-    }).then(function(res) {
-      clearTimeout(t);
-      return res.json();
-    })
+    }).then(function(res) { return res.json(); })
     .then(function(data) {
       if (data && data.success) {
         console.log('[4D测评] Cloudflare 保存成功');
@@ -420,7 +420,7 @@ function renderFullResult(){
         sendFeishu('需手动导入', '云端保存失败，已通知飞书备份');
       }
     }).catch(function(err) {
-      clearTimeout(t);
+      console.error('[4D测评] Cloudflare 请求失败:', err);
       sendFeishu('需手动导入', '云端保存失败，已通知飞书备份');
     });
   } else {

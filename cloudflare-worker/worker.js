@@ -69,13 +69,45 @@ export default {
       } catch (e) { return new Response('Error: ' + e.message, { status: 500 }); }
     }
 
+    // ==================== 管理页面（GET/POST）====================
     if (path === '/admin' || path === '/admin/') {
-      if (!checkAdminKey(url, env, request)) {
+      const key = getAdminKey(url, env, request);
+
+      // POST 登录
+      if (request.method === 'POST') {
+        let postKey = '';
+        try {
+          const formData = await request.formData();
+          postKey = formData.get('key') || '';
+        } catch (e) {}
+
+        if (!postKey || postKey !== env.ADMIN_KEY) {
+          return new Response(adminLoginHTML('密码错误'), { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        }
+
+        // 验证通过，设置 cookie 并重定向到管理页面
+        return new Response('', {
+          status: 302,
+          headers: {
+            'Location': '/admin',
+            'Set-Cookie': 'admin_key=' + encodeURIComponent(postKey) + '; Path=/admin; Max-Age=86400; SameSite=Lax',
+          },
+        });
+      }
+
+      // GET 请求：检查 cookie 或 URL key
+      if (!key || key !== env.ADMIN_KEY) {
         return new Response(adminLoginHTML(), { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
       }
+
       try {
         const { results } = await env.DB.prepare('SELECT * FROM results ORDER BY created_at DESC').all();
-        return new Response(adminHTML(results), { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        return new Response(adminHTML(results), {
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Set-Cookie': 'admin_key=' + encodeURIComponent(key) + '; Path=/admin; Max-Age=86400; SameSite=Lax',
+          },
+        });
       } catch (e) {
         return new Response(`<h1>Error</h1><p>${e.message}</p>`, { headers: { 'Content-Type': 'text/html; charset=utf-8' }, status: 500 });
       }
@@ -112,8 +144,18 @@ function json(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
+function getCookie(request, name) {
+  const cookie = request.headers.get('Cookie') || '';
+  const match = cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+function getAdminKey(url, env, request) {
+  return url.searchParams.get('key') || request.headers.get('X-Admin-Key') || getCookie(request, 'admin_key');
+}
+
 function checkAdminKey(url, env, request) {
-  const key = url.searchParams.get('key') || request.headers.get('X-Admin-Key');
+  const key = getAdminKey(url, env, request);
   return key && key === env.ADMIN_KEY;
 }
 
@@ -136,7 +178,8 @@ function sourceBadge(source) {
   return '<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:#e8e8ed;color:#666;font-size:11px;font-weight:600">-</span>';
 }
 
-function adminLoginHTML() {
+function adminLoginHTML(errorMsg) {
+  const errorHtml = errorMsg ? `<p style="color:#c45c5c;font-size:13px;margin-bottom:12px">${escapeHtml(errorMsg)}</p>` : '';
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>4D测评管理 - 登录</title>
@@ -156,12 +199,12 @@ button:hover{opacity:.88}
 <div class="card">
   <h1>4D 测评数据管理</h1>
   <p>请输入访问密码</p>
-  <input type="password" id="key" placeholder="访问密码" onkeydown="if(event.key==='Enter')login()">
-  <button onclick="login()">进入</button>
+  ${errorHtml}
+  <form method="POST" action="/admin">
+    <input type="password" name="key" placeholder="访问密码" onkeydown="if(event.key==='Enter')this.form.submit()">
+    <button type="submit">进入</button>
+  </form>
 </div>
-<script>
-function login(){var k=document.getElementById('key').value;if(!k)return;sessionStorage.setItem('adminKey',k);location.href=location.pathname+'?key='+encodeURIComponent(k);}
-</script>
 </body>
 </html>`;
 }
@@ -265,20 +308,13 @@ tr:hover{background:#f8f8fa}
 </div>
 
 <script>
-(function(){
-  var urlKey = new URL(location.href).searchParams.get('key');
-  var storedKey = sessionStorage.getItem('adminKey');
-  if (urlKey) {
-    sessionStorage.setItem('adminKey', urlKey);
-    history.replaceState({}, '', location.pathname);
-  } else if (storedKey) {
-    location.href = location.pathname + '?key=' + encodeURIComponent(storedKey);
-  }
-})();
+function getCookie(name) {
+  var match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 var importItems = [];
-var apiKey = sessionStorage.getItem('adminKey');
-if (!apiKey) { location.href = location.pathname; }
+var apiKey = getCookie('admin_key');
 
 function parseImport() {
   var text = document.getElementById('importArea').value;

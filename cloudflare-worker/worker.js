@@ -160,7 +160,7 @@ button:hover{opacity:.88}
   <button onclick="login()">进入</button>
 </div>
 <script>
-function login(){var k=document.getElementById('key').value;if(!k)return;sessionStorage.setItem('adminKey',k);location.href=location.pathname;}
+function login(){var k=document.getElementById('key').value;if(!k)return;sessionStorage.setItem('adminKey',k);location.href=location.pathname+'?key='+encodeURIComponent(k);}
 </script>
 </body>
 </html>`;
@@ -267,7 +267,13 @@ tr:hover{background:#f8f8fa}
 <script>
 (function(){
   var urlKey = new URL(location.href).searchParams.get('key');
-  if (urlKey) { sessionStorage.setItem('adminKey', urlKey); location.href = location.pathname; }
+  var storedKey = sessionStorage.getItem('adminKey');
+  if (urlKey) {
+    sessionStorage.setItem('adminKey', urlKey);
+    history.replaceState({}, '', location.pathname);
+  } else if (storedKey) {
+    location.href = location.pathname + '?key=' + encodeURIComponent(storedKey);
+  }
 })();
 
 var importItems = [];

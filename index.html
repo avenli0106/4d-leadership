@@ -362,25 +362,35 @@ function renderFullResult(){
   const FEISHU_WEBHOOK = 'https://open.feishu.cn/open-apis/bot/v2/hook/d7970ce0-1aab-437b-80f9-c7b7c8ca6aa5';
   const hasCF = CF_API && !CF_API.includes('你的-worker-name');
 
-  var saved = false, pending = 0;
-  function markSuccess() {
-    if (!saved) {
-      saved = true;
-      submitStatus.textContent = '结果已保存 ✓';
+  function sendFeishu(tag, statusText) {
+    var tagText = tag ? ' | ' + tag : '';
+    var feishuText = '【4D天性测评结果' + tagText + '】\n' +
+      '姓名：' + name + '\n' +
+      '主导色彩：' + d.name + '·' + d.type + '（' + d.en + '）\n\n' +
+      '四项得分：\n' +
+      '绿色（培养型）：' + g + '分\n' +
+      '黄色（包融型）：' + y + '分\n' +
+      '蓝色（展望型）：' + b + '分\n' +
+      '橙色（指导型）：' + o + '分\n\n' +
+      '基础维度：\n' +
+      '情感(F)：' + F + ' | 逻辑(T)：' + T + '\n' +
+      '直觉(N)：' + N + ' | 感觉(S)：' + S;
+    fetch(FEISHU_WEBHOOK, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ msg_type: 'text', content: {text: feishuText} })
+    }).then(function(res) {
+      console.log('[4D测评] 飞书发送成功');
+      submitStatus.textContent = statusText;
       submitStatus.style.color = '#2d9d5d';
-    }
-  }
-  function markFail() {
-    pending--;
-    if (pending === 0 && !saved) {
-      submitStatus.textContent = hasCF ? '云端保存失败，已通知飞书备份' : '已通知飞书备份';
-      submitStatus.style.color = '#c99500';
-    }
+    }).catch(function(err) {
+      console.error('[4D测评] 飞书发送失败:', err);
+      submitStatus.textContent = '保存失败，请复制下方结果手动发送';
+      submitStatus.style.color = '#c45c5c';
+    });
   }
 
-  // 通道1：Cloudflare Worker（主通道，数据落入 D1 数据库）
   if (hasCF) {
-    pending++;
     fetch(CF_API + '/api/submit', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -396,44 +406,20 @@ function renderFullResult(){
     .then(function(data) {
       if (data && data.success) {
         console.log('[4D测评] Cloudflare 保存成功');
-        markSuccess();
+        submitStatus.textContent = '结果已保存 ✓';
+        submitStatus.style.color = '#2d9d5d';
+        // Worker 已自动推送飞书 [已同步]，前端不再重复推送
       } else {
         console.error('[4D测评] Cloudflare 返回失败:', data);
-        markFail();
+        sendFeishu('需手动导入', '云端保存失败，已通知飞书备份');
       }
     }).catch(function(err) {
       console.error('[4D测评] Cloudflare 请求失败:', err);
-      markFail();
+      sendFeishu('需手动导入', '云端保存失败，已通知飞书备份');
     });
+  } else {
+    sendFeishu('', '已通知飞书备份');
   }
-
-  // 通道2：飞书群机器人（备份通知，始终发送）
-  var feishuText = '【4D天性测评结果】\n' +
-    '姓名：' + name + '\n' +
-    '主导色彩：' + d.name + '·' + d.type + '（' + d.en + '）\n\n' +
-    '四项得分：\n' +
-    '绿色（培养型）：' + g + '分\n' +
-    '黄色（包融型）：' + y + '分\n' +
-    '蓝色（展望型）：' + b + '分\n' +
-    '橙色（指导型）：' + o + '分\n\n' +
-    '基础维度：\n' +
-    '情感(F)：' + F + ' | 逻辑(T)：' + T + '\n' +
-    '直觉(N)：' + N + ' | 感觉(S)：' + S;
-  pending++;
-  fetch(FEISHU_WEBHOOK, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      msg_type: 'text',
-      content: {text: feishuText}
-    })
-  }).then(function(res) {
-    console.log('[4D测评] 飞书发送成功');
-    markSuccess();
-  }).catch(function(err) {
-    console.error('[4D测评] 飞书发送失败:', err);
-    markFail();
-  });
 
   document.getElementById('result').classList.add('show');
   document.getElementById('mainResult').appendChild(submitStatus);

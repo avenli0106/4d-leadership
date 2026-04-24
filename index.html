@@ -370,7 +370,35 @@ function renderFullResult(){
     console.log('[4D测评] 正在提交数据到:', SHEET_URL);
     console.log('[4D测评] 提交内容:', {name,F,N,T,S,scores:{green:g,yellow:y,blue:b,orange:o},mainColor:d.name+'·'+d.type});
     
-    // 统一用 fetch POST（之前正常工作的版本）
+    // 双通道发送：
+    // 通道1 - 图片ping（GET方式，浏览器几乎不会拦截图片加载，数据通过doGet写入）
+    try {
+      var params = new URLSearchParams();
+      params.set('username', name);
+      params.set('F', String(F));
+      params.set('N', String(N));
+      params.set('T', String(T));
+      params.set('S', String(S));
+      params.set('green', String(g));
+      params.set('yellow', String(y));
+      params.set('blue', String(b));
+      params.set('orange', String(o));
+      params.set('mainColor', d.name + '·' + d.type);
+      var pingUrl = SHEET_URL + '?' + params.toString();
+      console.log('[4D测评] 通道1-图片ping:', pingUrl);
+      var img = new Image();
+      img.src = pingUrl;
+    } catch(e) {
+      console.error('[4D测评] 图片ping异常:', e);
+    }
+    
+    // 通道2 - fetch POST（给用户即时反馈，但某些浏览器会拦截导致挂起，加5秒超时）
+    var controller = null, timeoutId = null;
+    try {
+      controller = new AbortController();
+      timeoutId = setTimeout(function(){ controller.abort(); }, 5000);
+    } catch(e) { /* 老浏览器不支持AbortController，忽略 */ }
+    
     fetch(SHEET_URL, {
       method: 'POST',
       mode: 'no-cors',
@@ -381,9 +409,11 @@ function renderFullResult(){
         scores: {green: g, yellow: y, blue: b, orange: o},
         mainColor: d.name + '·' + d.type,
         timestamp: new Date().toISOString()
-      })
+      }),
+      signal: controller ? controller.signal : undefined
     }).then(() => {
-      console.log('[4D测评] fetch 已发出');
+      if (timeoutId) clearTimeout(timeoutId);
+      console.log('[4D测评] 通道2-fetch成功');
       if (isWechat) {
         submitStatus.textContent = '已尝试保存（微信内可能受限，建议用浏览器打开）';
         submitStatus.style.color = '#c99500';
@@ -392,9 +422,16 @@ function renderFullResult(){
         submitStatus.style.color = '#2d9d5d';
       }
     }).catch(err => {
-      console.error('[4D测评] fetch 失败:', err);
-      submitStatus.textContent = '保存失败，请复制下方结果手动发送';
-      submitStatus.style.color = '#c45c5c';
+      if (timeoutId) clearTimeout(timeoutId);
+      console.error('[4D测评] 通道2-fetch失败:', err);
+      // AbortError=超时挂起，数据可能已通过通道1送达
+      if (err.name === 'AbortError') {
+        submitStatus.textContent = '响应较慢，数据可能已保存，请稍后查看表单确认';
+        submitStatus.style.color = '#c99500';
+      } else {
+        submitStatus.textContent = '保存失败，请复制下方结果手动发送';
+        submitStatus.style.color = '#c45c5c';
+      }
     });
   } else {
     submitStatus.textContent = '未配置数据收集地址';

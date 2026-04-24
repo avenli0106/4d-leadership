@@ -390,7 +390,8 @@ function renderFullResult(){
     });
   }
 
-  var isWechat = /MicroMessenger/i.test(navigator.userAgent);
+  var ua = navigator.userAgent.toLowerCase();
+  var isWechat = ua.indexOf('micromessenger') !== -1 || ua.indexOf('wxwork') !== -1 || typeof WeixinJSBridge !== 'undefined';
 
   if (isWechat) {
     sendFeishu('需手动导入', '已通知飞书备份');

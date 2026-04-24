@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4D天性测评</title>
+<link href="https://fonts.googleapis.com/css2?family=ZCOOL+XiaoWei&display=swap" rel="stylesheet">
+<style>
+:root{
+  --green:#2d9d5d;--green-bg:#e8f5ee;
+  --yellow:#c99500;--yellow-bg:#faf3d9;
+  --blue:#2563eb;--blue-bg:#e8effd;
+  --orange:#d96e1e;--orange-bg:#fdede0;
+  --ink:#2d2a33;--ink2:#5e5a66;--paper:#f7f4f0;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:"ZCOOL XiaoWei","PingFang SC","Microsoft YaHei",serif;
+  background:linear-gradient(180deg,#e8e0f0 0%,#f3e6ea 25%,#f5f0e8 50%,#eef3ec 75%,#e8ecee 100%);
+  background-attachment:fixed;
+  color:var(--ink);line-height:1.8;
+  min-height:100vh;
+}
+.container{max-width:680px;margin:0 auto;padding:32px 20px 80px;position:relative}
+
+/* Decorative floating elements */
+.deco-wrap{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.deco{
+  position:absolute;border-radius:50%;
+  background:radial-gradient(circle,rgba(180,160,200,0.25) 0%,transparent 70%);
+  animation:drift 20s ease-in-out infinite;
+}
+.deco:nth-child(1){width:300px;height:300px;top:-80px;left:-60px;animation-delay:0s}
+.deco:nth-child(2){width:220px;height:220px;top:20%;right:-40px;animation-delay:-5s;background:radial-gradient(circle,rgba(220,180,160,0.2) 0%,transparent 70%)}
+.deco:nth-child(3){width:180px;height:180px;bottom:10%;left:10%;animation-delay:-10s;background:radial-gradient(circle,rgba(160,190,180,0.2) 0%,transparent 70%)}
+.deco:nth-child(4){width:260px;height:260px;bottom:-60px;right:20%;animation-delay:-15s;background:radial-gradient(circle,rgba(180,170,200,0.18) 0%,transparent 70%)}
+@keyframes drift{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(20px,-30px) scale(1.05)}66%{transform:translate(-15px,20px) scale(0.95)}}
+
+/* Header */
+.header{position:relative;z-index:1;text-align:center;padding:48px 16px 40px}
+.header h1{font-size:32px;font-weight:400;margin-bottom:10px;letter-spacing:.06em;color:var(--ink)}
+.header .subtitle{font-size:13px;color:var(--ink2);letter-spacing:.12em;margin-bottom:28px}
+.header-intro{
+  background:rgba(255,255,255,0.55);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,0.6);border-radius:20px;
+  padding:22px 26px;font-size:14.5px;color:var(--ink2);line-height:1.95;
+  box-shadow:0 4px 20px rgba(0,0,0,0.04);
+}
+.header-guide{
+  margin-top:16px;background:rgba(255,255,255,0.4);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,0.5);border-radius:18px;
+  padding:18px 24px;font-size:14px;color:var(--ink);line-height:1.9;
+  box-shadow:0 2px 12px rgba(0,0,0,0.03);
+}
+
+/* Progress */
+.progress-wrap{position:relative;z-index:1;margin-bottom:28px}
+.progress-text{font-size:12px;color:var(--ink2);margin-bottom:8px;text-align:center;letter-spacing:.05em}
+.progress-track{height:3px;background:rgba(0,0,0,0.08);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;width:0%;background:linear-gradient(90deg,#a090b8,#8a9ab0);border-radius:3px;transition:width .5s ease}
+
+/* Quiz */
+.quiz-stage{position:relative;z-index:1;min-height:300px}
+.question-card{
+  background:rgba(255,255,255,0.7);backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,0.65);border-radius:24px;
+  padding:40px 32px;box-shadow:0 8px 32px rgba(0,0,0,0.06);
+  animation:cardIn .5s ease;
+}
+@keyframes cardIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+.question-number{font-size:13px;color:var(--ink2);margin-bottom:18px;letter-spacing:.05em}
+.question-text{font-size:18px;font-weight:400;margin-bottom:32px;line-height:1.65;color:var(--ink)}
+.options{display:flex;flex-direction:column;gap:14px}
+.options label{
+  display:flex;align-items:center;gap:14px;padding:20px 22px;
+  border-radius:16px;border:1.5px solid rgba(0,0,0,0.06);
+  background:rgba(255,255,255,0.5);cursor:pointer;
+  font-size:15.5px;color:var(--ink);transition:all .25s ease;
+}
+.options label:hover{background:rgba(255,255,255,0.85);border-color:rgba(0,0,0,0.12);transform:translateY(-1px)}
+.options input[type=radio]{width:18px;height:18px;accent-color:#7a6a8a;flex-shrink:0}
+.options label.selected{background:#fff;border-color:#a090b8;box-shadow:0 2px 12px rgba(160,144,184,0.12)}
+
+.nav-bar{display:flex;justify-content:space-between;margin-top:28px;gap:12px;position:relative;z-index:1}
+.nav-btn{
+  padding:14px 28px;border-radius:14px;border:1px solid rgba(0,0,0,0.08);
+  background:rgba(255,255,255,0.6);font-size:14px;cursor:pointer;
+  transition:all .25s;color:var(--ink);font-family:inherit;letter-spacing:.04em;
+}
+.nav-btn:hover{background:rgba(255,255,255,0.9)}
+.nav-btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+.nav-btn.primary:hover{opacity:.88}
+.nav-btn:disabled{opacity:.25;cursor:not-allowed}
+
+/* Result */
+.result{display:none;position:relative;z-index:1}
+.result.show{display:block;animation:cardIn .7s ease}
+
+.section-title{font-size:22px;font-weight:400;margin:44px 0 24px;text-align:center;letter-spacing:.04em}
+
+/* Chart */
+.chart-wrap{background:rgba(255,255,255,0.6);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.6);border-radius:24px;padding:28px;margin-bottom:32px;box-shadow:0 4px 24px rgba(0,0,0,0.05)}
+.chart-svg{width:100%;height:auto;display:block}
+
+/* Main result */
+.main-result{background:rgba(255,255,255,0.6);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.6);border-radius:24px;padding:36px 28px;text-align:center;margin-bottom:32px;box-shadow:0 4px 24px rgba(0,0,0,0.05)}
+.main-result .label{font-size:12px;color:var(--ink2);letter-spacing:.12em;margin-bottom:14px}
+.main-result .color-title{font-size:26px;font-weight:400;margin-bottom:6px;letter-spacing:.03em}
+.main-result .color-en{font-size:14px;color:var(--ink2);margin-bottom:18px;letter-spacing:.04em}
+.main-result .color-desc{font-size:15px;line-height:1.85;color:var(--ink2);max-width:500px;margin:0 auto}
+
+.portrait-wrap{width:100px;height:100px;margin:0 auto 18px}
+.portrait-wrap svg{width:100%;height:100%}
+
+/* AMBR */
+.ambr-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:32px}
+.ambr-card{background:rgba(255,255,255,0.6);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.55);border-radius:18px;padding:24px 20px;box-shadow:0 2px 12px rgba(0,0,0,0.04)}
+.ambr-card .tag{display:inline-block;font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;margin-bottom:12px;letter-spacing:.06em}
+.ambr-card p{font-size:14px;color:var(--ink2);line-height:1.8}
+
+/* Detail cards */
+.detail-card{background:rgba(255,255,255,0.6);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.55);border-radius:18px;padding:26px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,0.04)}
+.detail-card h4{font-size:16px;font-weight:400;margin-bottom:16px;display:flex;align-items:center;gap:10px;letter-spacing:.02em}
+.detail-card ul{padding-left:18px;font-size:14px;color:var(--ink2);line-height:2.1}
+.detail-card li{margin-bottom:6px}
+.detail-card .hl{display:inline-block;padding:2px 10px;border-radius:4px;font-size:11px;font-weight:600;margin-right:6px;letter-spacing:.03em}
+
+.retest-btn{
+  display:block;width:100%;padding:16px;margin-top:28px;
+  background:rgba(255,255,255,0.5);border:1.5px solid rgba(0,0,0,0.08);
+  border-radius:16px;font-size:15px;cursor:pointer;transition:all .25s;
+  font-family:inherit;color:var(--ink);letter-spacing:.04em;
+}
+.retest-btn:hover{background:rgba(255,255,255,0.85);border-color:rgba(0,0,0,0.15)}
+
+@media(max-width:520px){
+  .ambr-grid{grid-template-columns:1fr}
+  .header h1{font-size:26px}
+  .question-card{padding:28px 22px}
+}
+</style>
+</head>
+<body>
+
+<!-- Floating background decorations -->
+<div class="deco-wrap">
+  <div class="deco"></div><div class="deco"></div><div class="deco"></div><div class="deco"></div>
+</div>
+
+<div class="container">
+
+<div class="header" id="pageHeader">
+  <h1>4D 天性测评</h1>
+  <div class="subtitle">NASA 卓越团队系统 · 找回你的本色</div>
+  <div class="header-intro">
+    4D天性测评源于NASA天体物理学家查理·佩勒林博士创建的「4D卓越团队系统」。它基于荣格心理学，通过「决策方式」与「信息收集」两个天然维度，将人的天性分为四种颜色类型。这不是性格标签，而是帮助你看见自己与生俱来的思维与行为倾向。
+  </div>
+  <div class="header-guide">
+    请想象自己处于最放松、最没有压力的状态（比如20岁时），凭<strong>直觉</strong>选择最符合你真实倾向的选项。不要思考「应该选什么」，而是感受「本能会怎么选」。
+  </div>
+</div>
+
+<div class="progress-wrap" id="progressWrap">
+  <div class="progress-text" id="progressText">第 1 / 14 题</div>
+  <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+</div>
+
+<div class="quiz-stage" id="quizStage"></div>
+
+<div class="nav-bar" id="navBar">
+  <button class="nav-btn" id="btnPrev" onclick="goPrev()" disabled>上一题</button>
+  <button class="nav-btn primary" id="btnNext" onclick="goNext()" disabled>下一题</button>
+</div>
+
+<div class="result" id="result">
+  <h2 class="section-title" style="margin-top:0">你的 4D 天性区域图</h2>
+  <div class="chart-wrap"><div id="chartContainer"></div></div>
+
+  <div class="main-result" id="mainResult"></div>
+
+  <h2 class="section-title">AMBR 天性解码</h2>
+  <div class="ambr-grid" id="ambrGrid"></div>
+
+  <div id="detailSection"></div>
+
+  <button class="retest-btn" onclick="location.reload()">重新测评</button>
+</div>
+
+</div>
+
+<script>
+const questions=[
+  {t:"在你做决策时，你更偏好：",a:["团队和谐最重要","团队和谐是达到目的的手段"],v:["F","T"]},
+  {t:"在你做决策时，你更偏好：",a:["无法容忍人际冲突","能够接受人际冲突"],v:["F","T"]},
+  {t:"在你做决策时，你更偏好：",a:["首先相信自己的情感","首先相信自己的理智"],v:["F","T"]},
+  {t:"在你做决策时，你更偏好：",a:["达成共识再决策","根据自己的思考来决策"],v:["F","T"]},
+  {t:"在你做决策时，你更偏好：",a:["喜欢和谐的关系","喜欢做对的事情"],v:["F","T"]},
+  {t:"在你做决策时，你更偏好：",a:["优先考虑人","优先考虑事"],v:["F","T"]},
+  {t:"在你做决策时，你更偏好：",a:["因为「感觉对」而采取行动","因为「合乎逻辑」而采取行动"],v:["F","T"]},
+  {t:"在你获取信息时，你更偏好：",a:["喜欢大的想法","喜欢具体的现实"],v:["N","S"]},
+  {t:"在你获取信息时，你更偏好：",a:["注重全局","注重细节"],v:["N","S"]},
+  {t:"在你获取信息时，你更偏好：",a:["凭灵光一现行动","凭仔细分析而行动"],v:["N","S"]},
+  {t:"在你获取信息时，你更偏好：",a:["喜欢创新性的东西","喜欢基本常识"],v:["N","S"]},
+  {t:"在你获取信息时，你更偏好：",a:["喜欢研究抽象概念","喜欢研究具体事实和数据"],v:["N","S"]},
+  {t:"在你获取信息时，你更偏好：",a:["更多地考虑「可能是什么」","更多地考虑「是什么」"],v:["N","S"]},
+  {t:"在你获取信息时，你更偏好：",a:["依靠内在觉察、觉悟","依靠观察"],v:["N","S"]}
+];
+
+const colorData={
+  green:{name:"绿色",type:"培养型",en:"Cultivating",color:"#2d9d5d",bg:"#e8f5ee",
+    desc:"你天生关注人、价值观和共同利益。你善于表达欣赏与感激，能给团队带来温暖与能量。你是团队的「心灵园丁」，让每个人感到被看见、被重视。",
+    ambr:{attention:"自然地关注人们的需要、共同价值观与深层情感",mindset:"服务他人、关怀世界，相信人性本善与共同利益",behavior:"表达真诚的欣赏与感激，关注共同利益，赋能他人成长",result:"在不损害他人的情况下取得成功，赢得忠诚与信任"},
+    strength:"有同理心、善于激励、价值观驱动、乐于奉献",blind:"可能回避冲突、缺乏纪律性、过度敏感、容易情绪化",grow:"加强橙色（流程与执行）与蓝色（愿景与创新）维度，学会在关怀的同时设立边界"},
+  yellow:{name:"黄色",type:"包融型",en:"Including",color:"#c99500",bg:"#faf3d9",
+    desc:"你天生关注关系、和谐与归属感。你善于促进团队合作，是团队的「粘合剂」。你让每个人感到被接纳，是营造温暖氛围的高手。",
+    ambr:{attention:"自然地参与团队合作，建立人际关系与和谐氛围",mindset:"我们来到这里是为了相互合作，归属与联结是核心需求",behavior:"适度包融他人、信守约定、促进协作、维护团队和谐",result:"因和谐而成功，团队凝聚力强，成员有强烈的归属感"},
+    strength:"善于协调、团队粘合剂、重视承诺、让人感到安全",blind:"可能过于追求和谐、回避必要冲突、缺乏主见、委屈自己",grow:"加强蓝色（独立与愿景）与橙色（决断与执行）维度，学会在和谐中坚持原则"},
+  blue:{name:"蓝色",type:"展望型",en:"Visioning",color:"#2563eb",bg:"#e8effd",
+    desc:"你天生关注愿景、创意与可能性。你善于挑战现状，为团队指明方向、激发创新。你是那个问「为什么不呢？」的人，让不可能变为可能。",
+    ambr:{attention:"自然地注意想法、概念、可能性，追求卓越与创新",mindset:"新颖的远大构想很重要，相信不可能可以变为可能",behavior:"基于现实的乐观、百分百投入、挑战现状、快速迭代",result:"因卓越和创新而成功，创造突破性成果，引领变革"},
+    strength:"Visionary、创造力强、敢于冒险、独立思考、追求卓越",blind:"可能忽视人际关系、过度挑剔、好争论、执行力偏弱",grow:"加强黄色（包融与合作）与绿色（关怀与欣赏）维度，学会在创新中照顾人的感受"},
+  orange:{name:"橙色",type:"指导型",en:"Directing",color:"#d96e1e",bg:"#fdede0",
+    desc:"你天生关注流程、执行与确定性。你善于制定计划、把控节奏，让目标落地。你是团队的「定海神针」，确保事情按时、按质完成。",
+    ambr:{attention:"自然地关注任务、流程、确定性与可预期结果",mindset:"对工作有计划并且按计划实施，相信规则与纪律",behavior:"厘清角色责任、严格执行、避免指责抱怨、确保落地",result:"因有流程和始终一致而成功，高效达成目标，稳定可靠"},
+    strength:"执行力强、有组织、结果导向、可靠、善于管控风险",blind:"可能缺乏同理心、过于控制、思维僵化、容易指责他人",grow:"加强绿色（关怀与欣赏）与黄色（合作与包融）维度，学会在管理中看见人"}
+};
+
+const portraits={
+  green:`<svg viewBox="0 0 100 100"><defs><linearGradient id="ggrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2d9d5d" stop-opacity="0.15"/><stop offset="100%" stop-color="#2d9d5d" stop-opacity="0.05"/></linearGradient></defs><circle cx="50" cy="50" r="48" fill="url(#ggrad)"/><path d="M50 88 L50 52" stroke="#2d9d5d" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M50 52 Q32 42 28 32" stroke="#2d9d5d" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M50 52 Q68 42 72 32" stroke="#2d9d5d" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M50 64 Q38 56 34 48" stroke="#2d9d5d" stroke-width="1.6" fill="none" stroke-linecap="round"/><path d="M50 64 Q62 56 66 48" stroke="#2d9d5d" stroke-width="1.6" fill="none" stroke-linecap="round"/><circle cx="28" cy="28" r="7" fill="#2d9d5d" opacity="0.12"/><circle cx="72" cy="28" r="7" fill="#2d9d5d" opacity="0.12"/><circle cx="50" cy="18" r="9" fill="#2d9d5d" opacity="0.12"/><path d="M50 18 Q46 10 50 6 Q54 10 50 18" fill="#2d9d5d" opacity="0.25"/></svg>`,
+  yellow:`<svg viewBox="0 0 100 100"><defs><linearGradient id="ygrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#c99500" stop-opacity="0.15"/><stop offset="100%" stop-color="#c99500" stop-opacity="0.05"/></linearGradient></defs><circle cx="50" cy="50" r="48" fill="url(#ygrad)"/><circle cx="50" cy="50" r="26" fill="none" stroke="#c99500" stroke-width="1.2" opacity="0.35"/><circle cx="50" cy="50" r="18" fill="none" stroke="#c99500" stroke-width="1.2" opacity="0.5"/><circle cx="50" cy="50" r="10" fill="none" stroke="#c99500" stroke-width="1.2" opacity="0.7"/><path d="M38 50 Q50 38 62 50 Q50 62 38 50" fill="#c99500" opacity="0.1"/><path d="M50 28 L50 20 M50 72 L50 80 M28 50 L20 50 M72 50 L80 50" stroke="#c99500" stroke-width="1" opacity="0.3" stroke-linecap="round"/></svg>`,
+  blue:`<svg viewBox="0 0 100 100"><defs><linearGradient id="bgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2563eb" stop-opacity="0.15"/><stop offset="100%" stop-color="#2563eb" stop-opacity="0.05"/></linearGradient></defs><circle cx="50" cy="50" r="48" fill="url(#bgrad)"/><path d="M32 42 Q42 34 50 38 Q58 34 68 42" fill="none" stroke="#2563eb" stroke-width="1.6" opacity="0.5" stroke-linecap="round"/><path d="M36 39 L32 35 M64 39 L68 35" stroke="#2563eb" stroke-width="1.6" opacity="0.5" stroke-linecap="round"/><circle cx="24" cy="24" r="1.8" fill="#2563eb" opacity="0.35"/><circle cx="76" cy="20" r="1.8" fill="#2563eb" opacity="0.35"/><circle cx="82" cy="34" r="1.2" fill="#2563eb" opacity="0.25"/><circle cx="18" cy="34" r="1.2" fill="#2563eb" opacity="0.25"/><circle cx="50" cy="14" r="2.2" fill="#2563eb" opacity="0.2"/><path d="M50 58 L50 88" stroke="#2563eb" stroke-width="0.8" opacity="0.25" stroke-dasharray="3,3"/></svg>`,
+  orange:`<svg viewBox="0 0 100 100"><defs><linearGradient id="ograd" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#d96e1e" stop-opacity="0.15"/><stop offset="100%" stop-color="#d96e1e" stop-opacity="0.05"/></linearGradient></defs><circle cx="50" cy="50" r="48" fill="url(#ograd)"/><path d="M50 24 L63 31 L63 48 L50 55 L37 48 L37 31 Z" fill="none" stroke="#d96e1e" stroke-width="1.4" opacity="0.5" stroke-linejoin="round"/><path d="M50 55 L63 62 L63 79 L50 86 L37 79 L37 62 Z" fill="none" stroke="#d96e1e" stroke-width="1.4" opacity="0.5" stroke-linejoin="round"/><path d="M63 48 L76 55 L76 72 L63 79 L50 72 L50 55 Z" fill="none" stroke="#d96e1e" stroke-width="1.2" opacity="0.35" stroke-linejoin="round"/><path d="M37 48 L50 55 L50 72 L37 79 L24 72 L24 55 Z" fill="none" stroke="#d96e1e" stroke-width="1.2" opacity="0.35" stroke-linejoin="round"/><circle cx="50" cy="40" r="14" fill="#d96e1e" opacity="0.08"/></svg>`
+};
+
+let current=0;
+let answers=new Array(14).fill(null);
+let autoTimer=null;
+
+function renderQuestion(){
+  const q=questions[current];
+  document.getElementById('quizStage').innerHTML=`
+    <div class="question-card" id="qCard">
+      <div class="question-number">第 ${current+1} / 14 题</div>
+      <div class="question-text">${q.t}</div>
+      <div class="options">
+        ${q.a.map((opt,i)=>`
+          <label class="${answers[current]===q.v[i]?'selected':''}" onclick="selectOption('${q.v[i]}',this)">
+            <input type="radio" name="q" value="${q.v[i]}" ${answers[current]===q.v[i]?'checked':''}>
+            ${opt}
+          </label>
+        `).join('')}
+      </div>
+    </div>`;
+  document.getElementById('progressText').textContent=`第 ${current+1} / 14 题`;
+  document.getElementById('progressFill').style.width=((current+1)/14*100)+'%';
+  document.getElementById('btnPrev').disabled=current===0;
+  const btnNext=document.getElementById('btnNext');
+  if(current===13){btnNext.textContent=answers[current]?'查看结果':'下一题';btnNext.disabled=!answers[current];}
+  else{btnNext.textContent='下一题';btnNext.disabled=!answers[current];}
+}
+
+function selectOption(val,el){
+  if(autoTimer)clearTimeout(autoTimer);
+  answers[current]=val;
+  const labels=document.querySelectorAll('.options label');
+  labels.forEach(l=>l.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('btnNext').disabled=false;
+  if(current===13)document.getElementById('btnNext').textContent='查看结果';
+  autoTimer=setTimeout(()=>{if(current<13){current++;renderQuestion();}},400);
+}
+
+function goPrev(){
+  if(autoTimer)clearTimeout(autoTimer);
+  if(current>0){current--;renderQuestion();}
+}
+
+function goNext(){
+  if(autoTimer)clearTimeout(autoTimer);
+  if(!answers[current])return;
+  if(current<13){current++;renderQuestion();}
+  else{showResult();}
+}
+
+function showResult(){
+  document.getElementById('pageHeader').style.display='none';
+  document.getElementById('progressWrap').style.display='none';
+  document.getElementById('quizStage').style.display='none';
+  document.getElementById('navBar').style.display='none';
+
+  let F=0,T=0,N=0,S=0;
+  answers.forEach((v,i)=>{if(i<7){if(v==='F')F++;else T++;}else{if(v==='N')N++;else S++;}});
+  const g=F+N,y=F+S,b=T+N,o=T+S;
+  const scores=[{k:'green',s:g},{k:'yellow',s:y},{k:'blue',s:b},{k:'orange',s:o}];
+  scores.sort((a,b)=>b.s-a.s);
+  const mainKey=scores[0].k;
+  const d=colorData[mainKey];
+  const opposite=mainKey==='green'?'orange':mainKey==='yellow'?'blue':mainKey==='blue'?'yellow':'green';
+
+  const vb=9;
+  document.getElementById('chartContainer').innerHTML=`
+    <svg class="chart-svg" viewBox="-${vb} -${vb} ${vb*2} ${vb*2}">
+      <rect x="-${vb}" y="-${vb}" width="${vb}" height="${vb}" fill="#e8f5ee" opacity="0.7"/>
+      <rect x="0" y="-${vb}" width="${vb}" height="${vb}" fill="#e8effd" opacity="0.7"/>
+      <rect x="-${vb}" y="0" width="${vb}" height="${vb}" fill="#faf3d9" opacity="0.7"/>
+      <rect x="0" y="0" width="${vb}" height="${vb}" fill="#fdede0" opacity="0.7"/>
+      <line x1="0" y1="-${vb}" x2="0" y2="${vb}" stroke="#bbb" stroke-width="0.06" opacity="0.5"/>
+      <line x1="-${vb}" y1="0" x2="${vb}" y2="0" stroke="#bbb" stroke-width="0.06" opacity="0.5"/>
+
+      <text x="0" y="-${vb/2}" text-anchor="middle" font-size="0.75" fill="#5e5a66" font-family="ZCOOL XiaoWei,serif">直觉</text>
+      <text x="0" y="${vb/2+0.5}" text-anchor="middle" font-size="0.75" fill="#5e5a66" font-family="ZCOOL XiaoWei,serif">感觉</text>
+      <text x="-${vb/2}" y="0.35" text-anchor="middle" font-size="0.75" fill="#5e5a66" font-family="ZCOOL XiaoWei,serif">情感</text>
+      <text x="${vb/2}" y="0.35" text-anchor="middle" font-size="0.75" fill="#5e5a66" font-family="ZCOOL XiaoWei,serif">逻辑</text>
+
+      <polygon points="${-F},0 0,${-N} ${T},0 0,${S}" fill="rgba(45,42,51,0.08)" stroke="rgba(45,42,51,0.2)" stroke-width="0.08" stroke-linejoin="round"/>
+      <circle cx="${-F}" cy="0" r="0.22" fill="#2d9d5d" opacity="0.7"/>
+      <circle cx="0" cy="${-N}" r="0.22" fill="#2563eb" opacity="0.7"/>
+      <circle cx="${T}" cy="0" r="0.22" fill="#d96e1e" opacity="0.7"/>
+      <circle cx="0" cy="${S}" r="0.22" fill="#c99500" opacity="0.7"/>
+    </svg>`;
+
+  document.getElementById('mainResult').innerHTML=`
+    <div class="portrait-wrap">${portraits[mainKey]}</div>
+    <div class="label">你的主导天性色彩</div>
+    <div class="color-title" style="color:${d.color}">${d.name} · ${d.type}</div>
+    <div class="color-en">${d.en}</div>
+    <div class="color-desc">${d.desc}</div>`;
+
+  const ambrLabels={attention:'A · 关注点',mindset:'M · 心态',behavior:'B · 行为',result:'R · 成果'};
+  document.getElementById('ambrGrid').innerHTML=Object.entries(d.ambr).map(([k,v])=>`
+    <div class="ambr-card"><span class="tag" style="background:${d.bg};color:${d.color}">${ambrLabels[k]}</span><p>${v}</p></div>
+  `).join('');
+
+  document.getElementById('detailSection').innerHTML=`
+    <div class="detail-card">
+      <h4 style="color:${d.color}">${d.name}人格深度画像</h4>
+      <ul>
+        <li><span class="hl" style="background:${d.bg};color:${d.color}">核心优势</span>${d.strength}</li>
+        <li><span class="hl" style="background:${d.bg};color:${d.color}">潜在盲区</span>${d.blind}</li>
+        <li><span class="hl" style="background:${d.bg};color:${d.color}">修圆方向</span>${d.grow}</li>
+        <li><span class="hl" style="background:${d.bg};color:${d.color}">对角色彩</span>${colorData[opposite].name}（${colorData[opposite].type}）— 这是你能量最弱的维度，刻意练习会带来最大成长。</li>
+      </ul>
+    </div>
+    <div class="detail-card">
+      <h4>四种色彩速览</h4>
+      <ul>
+        <li><strong style="color:${colorData.green.color}">绿色（培养型）：</strong>关注人、价值观、欣赏与感激。</li>
+        <li><strong style="color:${colorData.yellow.color}">黄色（包融型）：</strong>关注关系、和谐、归属感。</li>
+        <li><strong style="color:${colorData.blue.color}">蓝色（展望型）：</strong>关注愿景、创意、可能性。</li>
+        <li><strong style="color:${colorData.orange.color}">橙色（指导型）：</strong>关注流程、执行、确定性。</li>
+      </ul>
+      <p style="margin-top:14px;color:#888;font-size:13px;line-height:1.7">
+        每个人四种颜色都有，得分最高的代表你的「主导天性」。成熟的4D领导者不会只做自己，而是能根据情境调用四种能量。
+      </p>
+    </div>`;
+
+  document.getElementById('result').classList.add('show');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+renderQuestion();
+</script>
+</body>
+</html>

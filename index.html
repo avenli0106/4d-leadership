@@ -194,6 +194,12 @@ const portraits={
   orange:`<svg viewBox="0 0 100 100"><defs><linearGradient id="ograd" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#d96e1e" stop-opacity="0.15"/><stop offset="100%" stop-color="#d96e1e" stop-opacity="0.05"/></linearGradient></defs><circle cx="50" cy="50" r="48" fill="url(#ograd)"/><path d="M50 25 L63 32 L63 48 L50 55 L37 48 L37 32 Z" fill="none" stroke="#d96e1e" stroke-width="1.4" opacity="0.5" stroke-linejoin="round"/><path d="M50 55 L63 62 L63 78 L50 85 L37 78 L37 62 Z" fill="none" stroke="#d96e1e" stroke-width="1.4" opacity="0.5" stroke-linejoin="round"/><path d="M63 48 L76 55 L76 71 L63 78 L50 71 L50 55 Z" fill="none" stroke="#d96e1e" stroke-width="1.2" opacity="0.35" stroke-linejoin="round"/><path d="M37 48 L50 55 L50 71 L37 78 L24 71 L24 55 Z" fill="none" stroke="#d96e1e" stroke-width="1.2" opacity="0.35" stroke-linejoin="round"/><circle cx="50" cy="42" r="14" fill="#d96e1e" opacity="0.08"/></svg>`
 };
 
+// ========================================
+// 配置：填入你的 Google Apps Script Web App URL
+// 部署指南见同目录下的 google-apps-script.js 文件
+// ========================================
+const SHEET_URL = ''; // 例如: 'https://script.google.com/macros/s/xxxx/exec'
+
 let current=0;
 let answers=new Array(14).fill(null);
 let autoTimer=null;
@@ -311,6 +317,21 @@ function showResult(){
         每个人四种颜色都有，得分最高的代表你的「主导天性」。成熟的4D领导者不会只做自己，而是能根据情境调用四种能量。
       </p>
     </div>`;
+
+  // 发送数据到 Google Sheets（静默提交，失败不影响用户体验）
+  if (SHEET_URL) {
+    fetch(SHEET_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        F: F, N: N, T: T, S: S,
+        scores: {green: g, yellow: y, blue: b, orange: o},
+        mainColor: d.name + '·' + d.type,
+        timestamp: new Date().toISOString()
+      })
+    }).catch(() => {});
+  }
 
   document.getElementById('result').classList.add('show');
   window.scrollTo({top:0,behavior:'smooth'});

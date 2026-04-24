@@ -303,7 +303,10 @@ function renderFullResult(){
     <h2 class="section-title">AMBR 天性解码</h2>
     <div class="ambr-grid" id="ambrGrid"></div>
     <div id="detailSection"></div>
-    <button class="retest-btn" onclick="location.reload()">重新测评</button>
+    <div style="text-align:center;margin-top:24px;">
+      <button class="retest-btn" onclick="copyResult()" style="background:#fff;border:1.5px solid #2d9d5d;color:#2d9d5d;">复制测评结果</button>
+      <button class="retest-btn" onclick="location.reload()" style="margin-top:12px;">重新测评</button>
+    </div>
   `;
 
   const vb=9;
@@ -367,58 +370,74 @@ function renderFullResult(){
     console.log('[4D测评] 正在提交数据到:', SHEET_URL);
     console.log('[4D测评] 提交内容:', {name,F,N,T,S,scores:{green:g,yellow:y,blue:b,orange:o},mainColor:d.name+'·'+d.type});
     
-    // 双保险发送：微信内用图片ping绕过限制，普通浏览器用fetch
     if (isWechat) {
+      // 微信内：form + iframe 表单提交（浏览器原生行为，比 fetch 更难被拦截）
       try {
-        var params = new URLSearchParams();
-        params.set('username', name);
-        params.set('F', String(F));
-        params.set('N', String(N));
-        params.set('T', String(T));
-        params.set('S', String(S));
-        params.set('green', String(g));
-        params.set('yellow', String(y));
-        params.set('blue', String(b));
-        params.set('orange', String(o));
-        params.set('mainColor', d.name + '·' + d.type);
-        var pingUrl = SHEET_URL + '?' + params.toString();
-        console.log('[4D测评] 微信内尝试图片ping:', pingUrl);
-        var img = new Image();
-        img.onload = function() { console.log('[4D测评] 图片ping onload'); };
-        img.onerror = function() { console.log('[4D测评] 图片ping onerror（请求已发出，忽略图片解析错误）'); };
-        img.src = pingUrl;
-        submitStatus.textContent = '已尝试发送（微信内可能受限，建议用浏览器打开）';
+        var iframeName = 'gsheet_' + Date.now();
+        var iframe = document.createElement('iframe');
+        iframe.name = iframeName;
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+        
+        var form = document.createElement('form');
+        form.action = SHEET_URL;
+        form.method = 'GET';
+        form.target = iframeName;
+        form.style.display = 'none';
+        
+        var fields = {
+          username: name,
+          F: String(F), N: String(N), T: String(T), S: String(S),
+          green: String(g), yellow: String(y), blue: String(b), orange: String(o),
+          mainColor: d.name + '·' + d.type
+        };
+        for (var key in fields) {
+          var input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = fields[key];
+          form.appendChild(input);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+        console.log('[4D测评] 微信内 form+iframe 已提交');
+        
+        submitStatus.textContent = '已尝试保存（微信内建议用浏览器打开以获得最佳体验）';
         submitStatus.style.color = '#c99500';
+        
+        setTimeout(function() {
+          if (form.parentNode) document.body.removeChild(form);
+          if (iframe.parentNode) document.body.removeChild(iframe);
+        }, 5000);
       } catch(e) {
-        console.error('[4D测评] 图片ping失败:', e);
-      }
-    }
-    
-    // 同时发起fetch（普通浏览器能成功，微信内可能失败但不阻塞）
-    fetch(SHEET_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        username: name,
-        F: F, N: N, T: T, S: S,
-        scores: {green: g, yellow: y, blue: b, orange: o},
-        mainColor: d.name + '·' + d.type,
-        timestamp: new Date().toISOString()
-      })
-    }).then(() => {
-      console.log('[4D测评] fetch 成功');
-      if (!isWechat) {
-        submitStatus.textContent = '结果已保存';
-        submitStatus.style.color = '#2d9d5d';
-      }
-    }).catch(err => {
-      console.error('[4D测评] fetch 失败:', err);
-      if (!isWechat) {
-        submitStatus.textContent = '保存失败，请检查网络或刷新重试';
+        console.error('[4D测评] form+iframe 失败:', e);
+        submitStatus.textContent = '自动保存失败，请复制下方结果手动发送';
         submitStatus.style.color = '#c45c5c';
       }
-    });
+    } else {
+      // 普通浏览器：fetch POST
+      fetch(SHEET_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          username: name,
+          F: F, N: N, T: T, S: S,
+          scores: {green: g, yellow: y, blue: b, orange: o},
+          mainColor: d.name + '·' + d.type,
+          timestamp: new Date().toISOString()
+        })
+      }).then(() => {
+        console.log('[4D测评] fetch 成功');
+        submitStatus.textContent = '结果已保存';
+        submitStatus.style.color = '#2d9d5d';
+      }).catch(err => {
+        console.error('[4D测评] fetch 失败:', err);
+        submitStatus.textContent = '保存失败，请检查网络或刷新重试';
+        submitStatus.style.color = '#c45c5c';
+      });
+    }
   } else {
     submitStatus.textContent = '未配置数据收集地址';
   }
@@ -426,6 +445,31 @@ function renderFullResult(){
   document.getElementById('result').classList.add('show');
   document.getElementById('mainResult').appendChild(submitStatus);
   window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function copyResult(){
+  var rd=window._resultData, name=window._userName||'匿名';
+  if(!rd){alert('请完成测评后再复制');return;}
+  var d=rd.d;
+  var text='【4D天性测评结果】\n姓名：'+name+
+    '\n主导色彩：'+d.name+' · '+d.type+'（'+d.en+'）'+
+    '\n\n四项得分：'+
+    '\n绿色（培养型）：'+rd.g+'分'+
+    '\n黄色（包融型）：'+rd.y+'分'+
+    '\n蓝色（展望型）：'+rd.b+'分'+
+    '\n橙色（指导型）：'+rd.o+'分'+
+    '\n\n基础维度：'+
+    '\n情感(F)：'+rd.F+'  |  逻辑(T)：'+rd.T+
+    '\n直觉(N)：'+rd.N+'  |  感觉(S)：'+rd.S+
+    '\n\n测评链接：https://avenli0106.github.io/4d-leadership/';
+  var ok=function(msg){var el=document.createElement('div');el.textContent=msg;el.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.75);color:#fff;padding:14px 28px;border-radius:10px;font-size:14px;z-index:9999;';document.body.appendChild(el);setTimeout(function(){if(el.parentNode)document.body.removeChild(el);},2000);};
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){ok('结果已复制到剪贴板');}).catch(function(){ok('复制失败，请手动截图');});
+  }else{
+    var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');ok('结果已复制到剪贴板');}catch(e){ok('复制失败，请手动截图');}
+    document.body.removeChild(ta);
+  }
 }
 
 // 页面加载时检测微信并显示提示

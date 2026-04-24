@@ -389,6 +389,7 @@ function renderFullResult(){
         F: F, N: N, T: T, S: S,
         scores: {green: g, yellow: y, blue: b, orange: o},
         mainColor: d.name + '·' + d.type,
+        source: 'web',
         timestamp: new Date().toISOString()
       })
     }).then(function(res) { return res.json(); })

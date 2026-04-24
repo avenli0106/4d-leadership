@@ -31,12 +31,10 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // ==================== 健康检查 ====================
     if (path === '/health') {
       return json({ status: 'ok', time: new Date().toISOString() });
     }
 
-    // ==================== 提交测评结果 ====================
     if (path === '/api/submit' && request.method === 'POST') {
       let data;
       try {
@@ -44,7 +42,6 @@ export default {
       } catch (e) {
         return json({ success: false, error: 'Invalid JSON' }, 400);
       }
-
       const result = await saveResult(env.DB, data);
       if (result.error) {
         return json({ success: false, error: result.error }, 500);
@@ -52,7 +49,6 @@ export default {
       return json({ success: true, message: 'Saved' });
     }
 
-    // ==================== 批量导入 ====================
     if (path === '/api/import' && request.method === 'POST') {
       if (!checkAdminKey(url, env)) {
         return json({ error: 'Unauthorized' }, 401);
@@ -63,17 +59,16 @@ export default {
       } catch (e) {
         return json({ success: false, error: 'Invalid JSON' }, 400);
       }
-
       const items = data.items || [];
       let inserted = 0;
       for (const item of items) {
+        item.source = 'manual';
         const result = await saveResult(env.DB, item);
         if (!result.error) inserted++;
       }
       return json({ success: true, inserted, total: items.length });
     }
 
-    // ==================== 查询结果（JSON）====================
     if (path === '/api/results') {
       if (!checkAdminKey(url, env)) {
         return json({ error: 'Unauthorized' }, 401);
@@ -88,7 +83,6 @@ export default {
       }
     }
 
-    // ==================== CSV 导出 ====================
     if (path === '/api/export') {
       if (!checkAdminKey(url, env)) {
         return new Response('Unauthorized', { status: 401 });
@@ -109,14 +103,12 @@ export default {
       }
     }
 
-    // ==================== 管理页面 ====================
     if (path === '/admin' || path === '/admin/') {
       if (!checkAdminKey(url, env)) {
         return new Response(adminLoginHTML(), {
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
         });
       }
-
       try {
         const { results } = await env.DB.prepare(
           'SELECT * FROM results ORDER BY created_at DESC'
@@ -136,8 +128,6 @@ export default {
   }
 };
 
-// ==================== 数据写入 ====================
-
 async function saveResult(db, data) {
   const name = (data.username || '匿名').trim().slice(0, 50);
   const f = parseInt(data.F) || 0;
@@ -151,21 +141,20 @@ async function saveResult(db, data) {
   const o = parseInt(scores.orange) || (t + s);
   const primaryColor = (data.mainColor || '').split('·')[0]?.trim() || '';
   const primaryType = (data.mainColor || '').split('·')[1]?.trim() || '';
+  const source = data.source || 'web';
 
   try {
     await db.prepare(`
       INSERT INTO results
-      (name, f, t, n, s, green, yellow, blue, orange, primary_color, primary_type)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(name, f, t, n, s, g, y, b, o, primaryColor, primaryType).run();
+      (name, f, t, n, s, green, yellow, blue, orange, primary_color, primary_type, source)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(name, f, t, n, s, g, y, b, o, primaryColor, primaryType, source).run();
     return { success: true };
   } catch (e) {
     console.error('D1 insert error:', e);
     return { error: e.message };
   }
 }
-
-// ==================== 工具函数 ====================
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -180,14 +169,14 @@ function checkAdminKey(url, env) {
 }
 
 function buildCSV(rows) {
-  const headers = ['ID', '姓名', '情感F', '逻辑T', '直觉N', '感觉S', '绿色', '黄色', '蓝色', '橙色', '主导色彩', '主导类型', '提交时间'];
+  const headers = ['ID', '姓名', '情感F', '逻辑T', '直觉N', '感觉S', '绿色', '黄色', '蓝色', '橙色', '主导色彩', '主导类型', '来源', '提交时间'];
   let csv = '\uFEFF' + headers.join(',') + '\n';
   for (const r of rows) {
     csv += [
       r.id, csvQuote(r.name), r.f, r.t, r.n, r.s,
       r.green, r.yellow, r.blue, r.orange,
       csvQuote(r.primary_color), csvQuote(r.primary_type),
-      r.created_at
+      csvQuote(r.source), r.created_at
     ].join(',') + '\n';
   }
   return csv;
@@ -214,7 +203,11 @@ function formatTime(s) {
   } catch (e) { return s; }
 }
 
-// ==================== 管理页面 HTML ====================
+function sourceBadge(source) {
+  if (source === 'web') return '<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:#e8f5ee;color:#2d9d5d;font-size:11px;font-weight:600">浏览器</span>';
+  if (source === 'manual') return '<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:#faf3d9;color:#c99500;font-size:11px;font-weight:600">飞书导入</span>';
+  return '<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:#e8e8ed;color:#666;font-size:11px;font-weight:600">-</span>';
+}
 
 function adminLoginHTML() {
   return `<!DOCTYPE html>
@@ -278,6 +271,7 @@ function adminHTML(rows, key) {
       <td><span class="badge" style="background:${color}20;color:${color}">${escapeHtml(r.primary_color || '-')}</span></td>
       <td>${r.f}</td><td>${r.t}</td><td>${r.n}</td><td>${r.s}</td>
       <td>${r.green}</td><td>${r.yellow}</td><td>${r.blue}</td><td>${r.orange}</td>
+      <td>${sourceBadge(r.source)}</td>
       <td class="time">${formatTime(r.created_at)}</td>
     </tr>`;
   }
@@ -315,7 +309,7 @@ textarea{width:100%;padding:12px;border-radius:10px;border:1.5px solid #eee;font
 textarea:focus{border-color:#a090b8}
 .import-actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
 #previewTable{margin-top:16px;overflow-x:auto}
-#importStatus{font-size:13px;color:#2d9d5d;margin-top:8px;min-height:20px}
+#importStatus{font-size:13px;margin-top:8px;min-height:20px}
 
 .table-wrap{background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.04);overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
@@ -345,21 +339,7 @@ tr:hover{background:#f8f8fa}
   <div class="import-box">
     <h2>从飞书消息导入</h2>
     <p>把飞书群里的测评消息批量粘贴到下方（多条消息之间至少空一行），解析确认后导入数据库。</p>
-    <textarea id="importArea" rows="8" placeholder="粘贴飞书群消息...
-
-【4D天性测评结果】
-姓名：张三
-主导色彩：蓝色·展望型（Visioning）
-
-四项得分：
-绿色（培养型）：3分
-黄色（包融型）：2分
-蓝色（展望型）：14分
-橙色（指导型）：7分
-
-基础维度：
-情感(F)：0 | 逻辑(T)：7
-直觉(N)：7 | 感觉(S)：0"></textarea>
+    <textarea id="importArea" rows="8" placeholder="粘贴飞书群消息..."></textarea>
     <div class="import-actions">
       <button class="btn btn-secondary" onclick="parseImport()">解析预览</button>
       <button class="btn btn-success" onclick="doImport()">确认导入</button>
@@ -381,7 +361,7 @@ tr:hover{background:#f8f8fa}
           <th>ID</th><th>姓名</th><th>主导色彩</th>
           <th>F</th><th>T</th><th>N</th><th>S</th>
           <th>绿</th><th>黄</th><th>蓝</th><th>橙</th>
-          <th>提交时间</th>
+          <th>来源</th><th>提交时间</th>
         </tr>
       </thead>
       <tbody>${tableRows}</tbody>
@@ -395,34 +375,40 @@ var apiKey = '${encodeURIComponent(key || '')}';
 
 function parseImport() {
   var text = document.getElementById('importArea').value;
-  var blocks = text.split(/\\n{2,}/).map(function(b){return b.trim()}).filter(function(b){return b.indexOf('【4D天性测评结果】') !== -1});
+  var blocks = text.split(/\n{2,}/).map(function(b){return b.trim()}).filter(function(b){return b.indexOf('【4D天性测评结果】') !== -1});
   importItems = [];
 
   for (var i = 0; i < blocks.length; i++) {
     var block = blocks[i];
     var item = {};
 
-    var nameMatch = block.match(/姓名：(.+)/);
+    var nameMatch = block.match(/姓名[:：](.+)/);
     if (nameMatch) item.username = nameMatch[1].trim();
 
-    var colorMatch = block.match(/主导色彩：(.+?)（/);
+    var colorMatch = block.match(/主导色彩[:：](.+?)[（(]/);
     if (colorMatch) item.mainColor = colorMatch[1].trim();
 
-    var greenMatch = block.match(/绿色（培养型）：(\\d+)分/);
-    var yellowMatch = block.match(/黄色（包融型）：(\\d+)分/);
-    var blueMatch = block.match(/蓝色（展望型）：(\\d+)分/);
-    var orangeMatch = block.match(/橙色（指导型）：(\\d+)分/);
+    var greenMatch = block.match(/绿色[（(]培养型[)）][:：]\s*(\d+)/);
+    var yellowMatch = block.match(/黄色[（(]包融型[)）][:：]\s*(\d+)/);
+    var blueMatch = block.match(/蓝色[（(]展望型[)）][:：]\s*(\d+)/);
+    var orangeMatch = block.match(/橙色[（(]指导型[)）][:：]\s*(\d+)/);
 
     if (greenMatch) item.green = parseInt(greenMatch[1]);
     if (yellowMatch) item.yellow = parseInt(yellowMatch[1]);
     if (blueMatch) item.blue = parseInt(blueMatch[1]);
     if (orangeMatch) item.orange = parseInt(orangeMatch[1]);
 
-    var dimMatch = block.match(/情感\\(F\\)：(\\d+)\\s*\\|\\s*逻辑\\(T\\)：(\\d+)/);
-    if (dimMatch) { item.F = parseInt(dimMatch[1]); item.T = parseInt(dimMatch[2]); }
+    var dimMatch = block.match(/情感[（(]F[)）][:：]\s*(\d+)/);
+    if (dimMatch) item.F = parseInt(dimMatch[1]);
 
-    var dimMatch2 = block.match(/直觉\\(N\\)：(\\d+)\\s*\\|\\s*感觉\\(S\\)：(\\d+)/);
-    if (dimMatch2) { item.N = parseInt(dimMatch2[1]); item.S = parseInt(dimMatch2[2]); }
+    var dimMatch2 = block.match(/逻辑[（(]T[)）][:：]\s*(\d+)/);
+    if (dimMatch2) item.T = parseInt(dimMatch2[1]);
+
+    var dimMatch3 = block.match(/直觉[（(]N[)）][:：]\s*(\d+)/);
+    if (dimMatch3) item.N = parseInt(dimMatch3[1]);
+
+    var dimMatch4 = block.match(/感觉[（(]S[)）][:：]\s*(\d+)/);
+    if (dimMatch4) item.S = parseInt(dimMatch4[1]);
 
     if (item.username && item.mainColor) {
       item.scores = { green: item.green || 0, yellow: item.yellow || 0, blue: item.blue || 0, orange: item.orange || 0 };

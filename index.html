@@ -111,10 +111,6 @@ body{
 
 <div class="container">
 
-<div id="wechatTip" style="display:none;background:#fff3e0;border:1px solid #ffc107;border-radius:12px;padding:14px 18px;margin:0 0 20px;text-align:center;font-size:14px;color:#856404;">
-  <b>⚠️ 微信内打开</b>：数据可能无法保存。请点击右上角「···」→「在浏览器中打开」
-</div>
-
 <div class="header" id="pageHeader">
   <h1>4D 天性测评</h1>
   <div class="subtitle">NASA 卓越团队系统 · 找回你的本色</div>
@@ -155,6 +151,12 @@ body{
 </div>
 
 <script>
+// ========================================
+// 配置：Cloudflare Worker API 地址
+// 部署 Worker 后把 URL 填到这里
+// ========================================
+const CF_API = 'https://你的-worker-name.你的子域.workers.dev';
+
 const questions=[
   {t:"在你做决策时，你更偏好：",a:["团队和谐最重要","团队和谐是达到目的的手段"],v:["F","T"]},
   {t:"在你做决策时，你更偏好：",a:["无法容忍人际冲突","能够接受人际冲突"],v:["F","T"]},
@@ -197,13 +199,6 @@ const portraits={
   blue:`<svg viewBox="0 0 100 100"><defs><linearGradient id="bgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2563eb" stop-opacity="0.15"/><stop offset="100%" stop-color="#2563eb" stop-opacity="0.05"/></linearGradient></defs><circle cx="50" cy="50" r="48" fill="url(#bgrad)"/><circle cx="50" cy="54" r="18" fill="#2563eb" opacity="0.1"/><circle cx="50" cy="54" r="16" fill="none" stroke="#2563eb" stroke-width="1.2" opacity="0.4"/><path d="M38 54 Q50 48 62 54" fill="none" stroke="#2563eb" stroke-width="0.9" opacity="0.3"/><path d="M42 60 Q50 56 58 60" fill="none" stroke="#2563eb" stroke-width="0.9" opacity="0.3"/><ellipse cx="50" cy="54" rx="24" ry="7" fill="none" stroke="#2563eb" stroke-width="0.8" opacity="0.2" transform="rotate(-12 50 54)"/><circle cx="26" cy="30" r="1.5" fill="#2563eb" opacity="0.35"/><circle cx="74" cy="26" r="1.5" fill="#2563eb" opacity="0.35"/><circle cx="82" cy="40" r="1" fill="#2563eb" opacity="0.25"/><circle cx="18" cy="40" r="1" fill="#2563eb" opacity="0.25"/><circle cx="50" cy="20" r="1.8" fill="#2563eb" opacity="0.25"/><circle cx="32" cy="74" r="1" fill="#2563eb" opacity="0.25"/><circle cx="68" cy="76" r="1" fill="#2563eb" opacity="0.25"/><line x1="74" y1="32" x2="79" y2="27" stroke="#2563eb" stroke-width="0.8" opacity="0.3" stroke-linecap="round"/><path d="M20 82 Q50 78 80 82" fill="none" stroke="#2563eb" stroke-width="0.8" opacity="0.2"/></svg>`,
   orange:`<svg viewBox="0 0 100 100"><defs><linearGradient id="ograd" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#d96e1e" stop-opacity="0.15"/><stop offset="100%" stop-color="#d96e1e" stop-opacity="0.05"/></linearGradient></defs><circle cx="50" cy="50" r="48" fill="url(#ograd)"/><path d="M50 25 L63 32 L63 48 L50 55 L37 48 L37 32 Z" fill="none" stroke="#d96e1e" stroke-width="1.4" opacity="0.5" stroke-linejoin="round"/><path d="M50 55 L63 62 L63 78 L50 85 L37 78 L37 62 Z" fill="none" stroke="#d96e1e" stroke-width="1.4" opacity="0.5" stroke-linejoin="round"/><path d="M63 48 L76 55 L76 71 L63 78 L50 71 L50 55 Z" fill="none" stroke="#d96e1e" stroke-width="1.2" opacity="0.35" stroke-linejoin="round"/><path d="M37 48 L50 55 L50 71 L37 78 L24 71 L24 55 Z" fill="none" stroke="#d96e1e" stroke-width="1.2" opacity="0.35" stroke-linejoin="round"/><circle cx="50" cy="42" r="14" fill="#d96e1e" opacity="0.08"/></svg>`
 };
-
-// ========================================
-// 配置：填入你的 Google Apps Script Web App URL
-// 部署指南见同目录下的 google-apps-script.js 文件
-// ========================================
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbyshfKV7SL5fgQTOlm34QMCNaPm8FjITBMMWyKctommKnggqkZb9xe3jnGFQZuxaTcR/exec';
-const isWechat = /MicroMessenger/i.test(navigator.userAgent);
 
 let current=0;
 let answers=new Array(14).fill(null);
@@ -270,7 +265,6 @@ function showResult(){
   const d=colorData[mainKey];
   const opposite=mainKey==='green'?'orange':mainKey==='yellow'?'blue':mainKey==='blue'?'yellow':'green';
 
-  // 先显示用户名输入界面
   document.getElementById('result').innerHTML = `
     <div class="question-card" style="text-align:center;max-width:420px;margin:60px auto;">
       <div class="question-text" style="margin-bottom:24px;font-size:18px;">测评完成！请填写您的名字</div>
@@ -281,7 +275,6 @@ function showResult(){
   document.getElementById('result').classList.add('show');
   window.scrollTo({top:0,behavior:'smooth'});
 
-  // 把结果数据存到全局变量，等确认名字后再用
   window._resultData = {F,T,N,S,g,y,b,o,d,opposite,scores,mainKey};
 }
 
@@ -365,34 +358,30 @@ function renderFullResult(){
   submitStatus.id = 'submitStatus';
   submitStatus.style.cssText = 'text-align:center;margin-top:16px;font-size:13px;color:#888;min-height:20px;';
   submitStatus.textContent = '正在保存结果...';
-  
-  // ===== 配置你的 NAS API 地址（部署后把 Cloudflare Tunnel URL 填到这里） =====
-  // 示例：const NAS_API = 'https://4d-yourname.xxx.workers.dev';
-  const NAS_API = '';
-  // ========================================================================
-  
+
   const FEISHU_WEBHOOK = 'https://open.feishu.cn/open-apis/bot/v2/hook/d7970ce0-1aab-437b-80f9-c7b7c8ca6aa5';
-  
+  const hasCF = CF_API && !CF_API.includes('你的-worker-name');
+
   var saved = false, pending = 0;
   function markSuccess() {
     if (!saved) {
       saved = true;
-      submitStatus.textContent = '结果已保存';
+      submitStatus.textContent = '结果已保存 ✓';
       submitStatus.style.color = '#2d9d5d';
     }
   }
   function markFail() {
     pending--;
     if (pending === 0 && !saved) {
-      submitStatus.textContent = '保存失败，请复制下方结果手动发送';
-      submitStatus.style.color = '#c45c5c';
+      submitStatus.textContent = hasCF ? '云端保存失败，已通知飞书备份' : '已通知飞书备份';
+      submitStatus.style.color = '#c99500';
     }
   }
-  
-  // 通道1：NAS 主通道（数据落入你自己的设备，全自动，微信/浏览器都能用）
-  if (NAS_API) {
+
+  // 通道1：Cloudflare Worker（主通道，数据落入 D1 数据库）
+  if (hasCF) {
     pending++;
-    fetch(NAS_API + '/submit', {
+    fetch(CF_API + '/api/submit', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -402,16 +391,22 @@ function renderFullResult(){
         mainColor: d.name + '·' + d.type,
         timestamp: new Date().toISOString()
       })
-    }).then(function(res) {
-      console.log('[4D测评] NAS 发送成功');
-      markSuccess();
+    }).then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data && data.success) {
+        console.log('[4D测评] Cloudflare 保存成功');
+        markSuccess();
+      } else {
+        console.error('[4D测评] Cloudflare 返回失败:', data);
+        markFail();
+      }
     }).catch(function(err) {
-      console.error('[4D测评] NAS 发送失败:', err);
+      console.error('[4D测评] Cloudflare 请求失败:', err);
       markFail();
     });
   }
-  
-  // 通道2：飞书群机器人（备用通知）
+
+  // 通道2：飞书群机器人（备份通知，始终发送）
   var feishuText = '【4D天性测评结果】\n' +
     '姓名：' + name + '\n' +
     '主导色彩：' + d.name + '·' + d.type + '（' + d.en + '）\n\n' +
@@ -438,22 +433,6 @@ function renderFullResult(){
     console.error('[4D测评] 飞书发送失败:', err);
     markFail();
   });
-  
-  // 通道3：Google Sheets（备用，静默发送不阻塞）
-  if (SHEET_URL) {
-    fetch(SHEET_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        username: name,
-        F: F, N: N, T: T, S: S,
-        scores: {green: g, yellow: y, blue: b, orange: o},
-        mainColor: d.name + '·' + d.type,
-        timestamp: new Date().toISOString()
-      })
-    }).catch(function(){});
-  }
 
   document.getElementById('result').classList.add('show');
   document.getElementById('mainResult').appendChild(submitStatus);
@@ -483,12 +462,6 @@ function copyResult(){
     try{document.execCommand('copy');ok('结果已复制到剪贴板');}catch(e){ok('复制失败，请手动截图');}
     document.body.removeChild(ta);
   }
-}
-
-// 页面加载时检测微信并显示提示
-if (isWechat) {
-  var tip = document.getElementById('wechatTip');
-  if (tip) tip.style.display = 'block';
 }
 
 renderQuestion();

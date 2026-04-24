@@ -366,6 +366,12 @@ function renderFullResult(){
   submitStatus.style.cssText = 'text-align:center;margin-top:16px;font-size:13px;color:#888;min-height:20px;';
   submitStatus.textContent = '正在保存结果...';
   
+  // 8秒超时兜底：无论哪种方式卡住，都提示用户
+  var saveTimer = setTimeout(function(){
+    submitStatus.textContent = '保存超时，请点击下方「复制测评结果」手动发送';
+    submitStatus.style.color = '#c45c5c';
+  }, 8000);
+  
   if (SHEET_URL) {
     console.log('[4D测评] 正在提交数据到:', SHEET_URL);
     console.log('[4D测评] 提交内容:', {name,F,N,T,S,scores:{green:g,yellow:y,blue:b,orange:o},mainColor:d.name+'·'+d.type});
@@ -403,7 +409,8 @@ function renderFullResult(){
         form.submit();
         console.log('[4D测评] 微信内 form+iframe 已提交');
         
-        submitStatus.textContent = '已尝试保存（微信内建议用浏览器打开以获得最佳体验）';
+        clearTimeout(saveTimer);
+        submitStatus.textContent = '已尝试保存（微信内可能受限，建议用浏览器打开）';
         submitStatus.style.color = '#c99500';
         
         setTimeout(function() {
@@ -411,16 +418,18 @@ function renderFullResult(){
           if (iframe.parentNode) document.body.removeChild(iframe);
         }, 5000);
       } catch(e) {
+        clearTimeout(saveTimer);
         console.error('[4D测评] form+iframe 失败:', e);
         submitStatus.textContent = '自动保存失败，请复制下方结果手动发送';
         submitStatus.style.color = '#c45c5c';
       }
     } else {
       // 普通浏览器：fetch POST
+      // 用 text/plain 代替 application/json，避免某些浏览器触发 CORS 预检导致挂起
       fetch(SHEET_URL, {
         method: 'POST',
         mode: 'no-cors',
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'text/plain'},
         body: JSON.stringify({
           username: name,
           F: F, N: N, T: T, S: S,
@@ -429,16 +438,19 @@ function renderFullResult(){
           timestamp: new Date().toISOString()
         })
       }).then(() => {
+        clearTimeout(saveTimer);
         console.log('[4D测评] fetch 成功');
         submitStatus.textContent = '结果已保存';
         submitStatus.style.color = '#2d9d5d';
       }).catch(err => {
+        clearTimeout(saveTimer);
         console.error('[4D测评] fetch 失败:', err);
-        submitStatus.textContent = '保存失败，请检查网络或刷新重试';
+        submitStatus.textContent = '保存失败，请复制下方结果手动发送';
         submitStatus.style.color = '#c45c5c';
       });
     }
   } else {
+    clearTimeout(saveTimer);
     submitStatus.textContent = '未配置数据收集地址';
   }
 

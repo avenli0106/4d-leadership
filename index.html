@@ -277,7 +277,7 @@ function showResult(){
   window.scrollTo({top:0,behavior:'smooth'});
 
   // 把结果数据存到全局变量，等确认名字后再用
-  window._resultData = {F,T,N,S,g,y,b,o,d,opposite,scores};
+  window._resultData = {F,T,N,S,g,y,b,o,d,opposite,scores,mainKey};
 }
 
 function confirmName(){
@@ -288,7 +288,7 @@ function confirmName(){
 }
 
 function renderFullResult(){
-  const {F,T,N,S,g,y,b,o,d,opposite,scores} = window._resultData;
+  const {F,T,N,S,g,y,b,o,d,opposite,scores,mainKey} = window._resultData;
   const name = window._userName || '匿名';
 
   document.getElementById('result').innerHTML = `

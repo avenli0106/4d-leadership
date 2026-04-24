@@ -366,91 +366,37 @@ function renderFullResult(){
   submitStatus.style.cssText = 'text-align:center;margin-top:16px;font-size:13px;color:#888;min-height:20px;';
   submitStatus.textContent = '正在保存结果...';
   
-  // 8秒超时兜底：无论哪种方式卡住，都提示用户
-  var saveTimer = setTimeout(function(){
-    submitStatus.textContent = '保存超时，请点击下方「复制测评结果」手动发送';
-    submitStatus.style.color = '#c45c5c';
-  }, 8000);
-  
   if (SHEET_URL) {
     console.log('[4D测评] 正在提交数据到:', SHEET_URL);
     console.log('[4D测评] 提交内容:', {name,F,N,T,S,scores:{green:g,yellow:y,blue:b,orange:o},mainColor:d.name+'·'+d.type});
     
-    if (isWechat) {
-      // 微信内：form + iframe 表单提交（浏览器原生行为，比 fetch 更难被拦截）
-      try {
-        var iframeName = 'gsheet_' + Date.now();
-        var iframe = document.createElement('iframe');
-        iframe.name = iframeName;
-        iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-        
-        var form = document.createElement('form');
-        form.action = SHEET_URL;
-        form.method = 'GET';
-        form.target = iframeName;
-        form.style.display = 'none';
-        
-        var fields = {
-          username: name,
-          F: String(F), N: String(N), T: String(T), S: String(S),
-          green: String(g), yellow: String(y), blue: String(b), orange: String(o),
-          mainColor: d.name + '·' + d.type
-        };
-        for (var key in fields) {
-          var input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = fields[key];
-          form.appendChild(input);
-        }
-        
-        document.body.appendChild(form);
-        form.submit();
-        console.log('[4D测评] 微信内 form+iframe 已提交');
-        
-        clearTimeout(saveTimer);
+    // 统一用 fetch POST（之前正常工作的版本）
+    fetch(SHEET_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        username: name,
+        F: F, N: N, T: T, S: S,
+        scores: {green: g, yellow: y, blue: b, orange: o},
+        mainColor: d.name + '·' + d.type,
+        timestamp: new Date().toISOString()
+      })
+    }).then(() => {
+      console.log('[4D测评] fetch 已发出');
+      if (isWechat) {
         submitStatus.textContent = '已尝试保存（微信内可能受限，建议用浏览器打开）';
         submitStatus.style.color = '#c99500';
-        
-        setTimeout(function() {
-          if (form.parentNode) document.body.removeChild(form);
-          if (iframe.parentNode) document.body.removeChild(iframe);
-        }, 5000);
-      } catch(e) {
-        clearTimeout(saveTimer);
-        console.error('[4D测评] form+iframe 失败:', e);
-        submitStatus.textContent = '自动保存失败，请复制下方结果手动发送';
-        submitStatus.style.color = '#c45c5c';
-      }
-    } else {
-      // 普通浏览器：fetch POST
-      // 用 text/plain 代替 application/json，避免某些浏览器触发 CORS 预检导致挂起
-      fetch(SHEET_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: {'Content-Type': 'text/plain'},
-        body: JSON.stringify({
-          username: name,
-          F: F, N: N, T: T, S: S,
-          scores: {green: g, yellow: y, blue: b, orange: o},
-          mainColor: d.name + '·' + d.type,
-          timestamp: new Date().toISOString()
-        })
-      }).then(() => {
-        clearTimeout(saveTimer);
-        console.log('[4D测评] fetch 成功');
+      } else {
         submitStatus.textContent = '结果已保存';
         submitStatus.style.color = '#2d9d5d';
-      }).catch(err => {
-        clearTimeout(saveTimer);
-        console.error('[4D测评] fetch 失败:', err);
-        submitStatus.textContent = '保存失败，请复制下方结果手动发送';
-        submitStatus.style.color = '#c45c5c';
-      });
-    }
+      }
+    }).catch(err => {
+      console.error('[4D测评] fetch 失败:', err);
+      submitStatus.textContent = '保存失败，请复制下方结果手动发送';
+      submitStatus.style.color = '#c45c5c';
+    });
   } else {
-    clearTimeout(saveTimer);
     submitStatus.textContent = '未配置数据收集地址';
   }
 

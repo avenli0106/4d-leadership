@@ -366,8 +366,11 @@ function renderFullResult(){
   submitStatus.style.cssText = 'text-align:center;margin-top:16px;font-size:13px;color:#888;min-height:20px;';
   submitStatus.textContent = '正在保存结果...';
   
-  // 三个后端地址
-  const WPS_WEBHOOK = 'https://www.kdocs.cn/chatflow/api/v2/func/webhook/3Cn14EjnUAQn9ZlUbIGlwrEUJ4U';
+  // ===== 配置你的 NAS API 地址（部署后把 Cloudflare Tunnel URL 填到这里） =====
+  // 示例：const NAS_API = 'https://4d-yourname.xxx.workers.dev';
+  const NAS_API = '';
+  // ========================================================================
+  
   const FEISHU_WEBHOOK = 'https://open.feishu.cn/open-apis/bot/v2/hook/d7970ce0-1aab-437b-80f9-c7b7c8ca6aa5';
   
   var saved = false, pending = 0;
@@ -386,27 +389,29 @@ function renderFullResult(){
     }
   }
   
-  // 通道1：WPS 多维表格（主表格，扁平化 JSON 方便字段映射）
-  pending++;
-  fetch(WPS_WEBHOOK, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      username: name,
-      F: F, N: N, T: T, S: S,
-      green: g, yellow: y, blue: b, orange: o,
-      mainColor: d.name + '·' + d.type,
-      timestamp: new Date().toISOString()
-    })
-  }).then(function(res) {
-    console.log('[4D测评] WPS 发送成功');
-    markSuccess();
-  }).catch(function(err) {
-    console.error('[4D测评] WPS 发送失败:', err);
-    markFail();
-  });
+  // 通道1：NAS 主通道（数据落入你自己的设备，全自动，微信/浏览器都能用）
+  if (NAS_API) {
+    pending++;
+    fetch(NAS_API + '/submit', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        username: name,
+        F: F, N: N, T: T, S: S,
+        scores: {green: g, yellow: y, blue: b, orange: o},
+        mainColor: d.name + '·' + d.type,
+        timestamp: new Date().toISOString()
+      })
+    }).then(function(res) {
+      console.log('[4D测评] NAS 发送成功');
+      markSuccess();
+    }).catch(function(err) {
+      console.error('[4D测评] NAS 发送失败:', err);
+      markFail();
+    });
+  }
   
-  // 通道2：飞书群机器人（通知）
+  // 通道2：飞书群机器人（备用通知）
   var feishuText = '【4D天性测评结果】\n' +
     '姓名：' + name + '\n' +
     '主导色彩：' + d.name + '·' + d.type + '（' + d.en + '）\n\n' +

@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  # 数据收集 API 服务
+  api:
+    build: .
+    container_name: d4-collector
+    restart: unless-stopped
+    volumes:
+      # 把容器内的 /app/data 映射到宿主机的 ./data 目录
+      # 这样 CSV 文件会保存在 NAS 本地，容器重启数据不丢失
+      - ./data:/app/data
+    networks:
+      - d4-network
+
+  # Cloudflare Tunnel（内网穿透，提供公网访问）
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: d4-tunnel
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    networks:
+      - d4-network
+
+networks:
+  d4-network:
+    driver: bridge

@@ -390,7 +390,11 @@ function renderFullResult(){
     });
   }
 
-  if (hasCF) {
+  var isWechat = /MicroMessenger/i.test(navigator.userAgent);
+
+  if (isWechat) {
+    sendFeishu('需手动导入', '已通知飞书备份');
+  } else if (hasCF) {
     fetch(CF_API + '/api/submit', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},

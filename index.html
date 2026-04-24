@@ -366,10 +366,47 @@ function renderFullResult(){
   submitStatus.style.cssText = 'text-align:center;margin-top:16px;font-size:13px;color:#888;min-height:20px;';
   submitStatus.textContent = '正在保存结果...';
   
-  // 飞书群机器人 Webhook（国内服务，微信和任何浏览器都不会拦截）
+  // 三个后端地址
+  const WPS_WEBHOOK = 'https://www.kdocs.cn/chatflow/api/v2/func/webhook/3Cn14EjnUAQn9ZlUbIGlwrEUJ4U';
   const FEISHU_WEBHOOK = 'https://open.feishu.cn/open-apis/bot/v2/hook/d7970ce0-1aab-437b-80f9-c7b7c8ca6aa5';
   
-  // 构建飞书消息
+  var saved = false, pending = 0;
+  function markSuccess() {
+    if (!saved) {
+      saved = true;
+      submitStatus.textContent = '结果已保存';
+      submitStatus.style.color = '#2d9d5d';
+    }
+  }
+  function markFail() {
+    pending--;
+    if (pending === 0 && !saved) {
+      submitStatus.textContent = '保存失败，请复制下方结果手动发送';
+      submitStatus.style.color = '#c45c5c';
+    }
+  }
+  
+  // 通道1：WPS 多维表格（主表格，扁平化 JSON 方便字段映射）
+  pending++;
+  fetch(WPS_WEBHOOK, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      username: name,
+      F: F, N: N, T: T, S: S,
+      green: g, yellow: y, blue: b, orange: o,
+      mainColor: d.name + '·' + d.type,
+      timestamp: new Date().toISOString()
+    })
+  }).then(function(res) {
+    console.log('[4D测评] WPS 发送成功');
+    markSuccess();
+  }).catch(function(err) {
+    console.error('[4D测评] WPS 发送失败:', err);
+    markFail();
+  });
+  
+  // 通道2：飞书群机器人（通知）
   var feishuText = '【4D天性测评结果】\n' +
     '姓名：' + name + '\n' +
     '主导色彩：' + d.name + '·' + d.type + '（' + d.en + '）\n\n' +
@@ -381,8 +418,7 @@ function renderFullResult(){
     '基础维度：\n' +
     '情感(F)：' + F + ' | 逻辑(T)：' + T + '\n' +
     '直觉(N)：' + N + ' | 感觉(S)：' + S;
-  
-  // 主通道：飞书群机器人（最可靠，任何浏览器都能用）
+  pending++;
   fetch(FEISHU_WEBHOOK, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -392,15 +428,13 @@ function renderFullResult(){
     })
   }).then(function(res) {
     console.log('[4D测评] 飞书发送成功');
-    submitStatus.textContent = '结果已保存';
-    submitStatus.style.color = '#2d9d5d';
+    markSuccess();
   }).catch(function(err) {
     console.error('[4D测评] 飞书发送失败:', err);
-    submitStatus.textContent = '保存失败，请复制下方结果手动发送';
-    submitStatus.style.color = '#c45c5c';
+    markFail();
   });
   
-  // 备用通道：Google Sheets（向后兼容，静默发送不阻塞主流程）
+  // 通道3：Google Sheets（备用，静默发送不阻塞）
   if (SHEET_URL) {
     fetch(SHEET_URL, {
       method: 'POST',

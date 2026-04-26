@@ -425,9 +425,7 @@ function renderFullResult(){
     .then(function(data) {
       if (data && data.success) {
         console.log('[4D测评] Cloudflare 保存成功');
-        submitStatus.textContent = '结果已保存 ✓';
-        submitStatus.style.color = '#2d9d5d';
-        // Worker 已自动推送飞书 [已同步]，前端不再重复推送
+        sendFeishu('已同步', '结果已保存 ✓');
       } else {
         console.error('[4D测评] Cloudflare 返回失败:', data);
         sendFeishu('需手动导入', '云端保存失败，已通知飞书备份');

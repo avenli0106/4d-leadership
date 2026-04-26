@@ -2,36 +2,6 @@
  * 4D天性测评 - Cloudflare Worker 后端
  */
 
-const FEISHU_WEBHOOKS = [
-  'https://open.feishu.cn/open-apis/bot/v2/hook/d7970ce0-1aab-437b-80f9-c7b7c8ca6aa5',
-  'https://open.feishu.cn/open-apis/bot/v2/hook/da0f3de9-75a5-4f66-8f9a-7668f20390b0'
-];
-
-async function sendFeishuNotify(data) {
-  const name = (data.username || '匿名').trim();
-  const scores = data.scores || {};
-  const feishuText = '【4D天性测评结果 | 已同步】\n' +
-    '姓名：' + name + '\n' +
-    '主导色彩：' + (data.mainColor || '-') + '\n\n' +
-    '四项得分：\n' +
-    '绿色（培养型）：' + (scores.green || 0) + '分\n' +
-    '黄色（包融型）：' + (scores.yellow || 0) + '分\n' +
-    '蓝色（展望型）：' + (scores.blue || 0) + '分\n' +
-    '橙色（指导型）：' + (scores.orange || 0) + '分\n\n' +
-    '基础维度：\n' +
-    '情感(F)：' + (data.F || 0) + ' | 逻辑(T)：' + (data.T || 0) + '\n' +
-    '直觉(N)：' + (data.N || 0) + ' | 感觉(S)：' + (data.S || 0);
-  for (const webhook of FEISHU_WEBHOOKS) {
-    try {
-      await fetch(webhook, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ msg_type: 'text', content: { text: feishuText } })
-      });
-    } catch (e) { console.error('Feishu notify error:', e); }
-  }
-}
-
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -58,7 +28,6 @@ export default {
       }
       const result = await saveResult(env.DB, data);
       if (result.error) return json({ success: false, error: result.error }, 500);
-      ctx.waitUntil(sendFeishuNotify(data));
       return json({ success: true, message: 'Saved' });
     }
 

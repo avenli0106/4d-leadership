@@ -359,7 +359,10 @@ function renderFullResult(){
   submitStatus.style.cssText = 'text-align:center;margin-top:16px;font-size:13px;color:#888;min-height:20px;';
   submitStatus.textContent = '正在保存结果...';
 
-  const FEISHU_WEBHOOK = 'https://open.feishu.cn/open-apis/bot/v2/hook/d7970ce0-1aab-437b-80f9-c7b7c8ca6aa5';
+  const FEISHU_WEBHOOKS = [
+    'https://open.feishu.cn/open-apis/bot/v2/hook/d7970ce0-1aab-437b-80f9-c7b7c8ca6aa5',
+    'https://open.feishu.cn/open-apis/bot/v2/hook/da0f3de9-75a5-4f66-8f9a-7668f20390b0'
+  ];
   const hasCF = CF_API && !CF_API.includes('你的-worker-name');
 
   function sendFeishu(tag, statusText) {
@@ -375,18 +378,29 @@ function renderFullResult(){
       '基础维度：\n' +
       '情感(F)：' + F + ' | 逻辑(T)：' + T + '\n' +
       '直觉(N)：' + N + ' | 感觉(S)：' + S;
-    fetch(FEISHU_WEBHOOK, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ msg_type: 'text', content: {text: feishuText} })
-    }).then(function(res) {
-      console.log('[4D测评] 飞书发送成功');
-      submitStatus.textContent = statusText;
-      submitStatus.style.color = '#2d9d5d';
-    }).catch(function(err) {
-      console.error('[4D测评] 飞书发送失败:', err);
-      submitStatus.textContent = '保存失败，请复制下方结果手动发送';
-      submitStatus.style.color = '#c45c5c';
+    
+    var sentCount = 0;
+    var failCount = 0;
+    FEISHU_WEBHOOKS.forEach(function(webhook) {
+      fetch(webhook, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ msg_type: 'text', content: {text: feishuText} })
+      }).then(function(res) {
+        sentCount++;
+        console.log('[4D测评] 飞书发送成功: ' + webhook.slice(-12));
+        if (sentCount + failCount === FEISHU_WEBHOOKS.length) {
+          submitStatus.textContent = statusText;
+          submitStatus.style.color = '#2d9d5d';
+        }
+      }).catch(function(err) {
+        failCount++;
+        console.error('[4D测评] 飞书发送失败:', err);
+        if (sentCount + failCount === FEISHU_WEBHOOKS.length) {
+          submitStatus.textContent = '保存失败，请复制下方结果手动发送';
+          submitStatus.style.color = '#c45c5c';
+        }
+      });
     });
   }
 

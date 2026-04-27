@@ -326,7 +326,7 @@ var apiKey = getCookie('admin_key');
 
 function parseImport() {
   var text = document.getElementById('importArea').value;
-  var lines = text.split('\n');
+  var lines = text.split(String.fromCharCode(10));
 
   // 按标题分块（不按空行，避免同一条消息被劈开）
   var blocks = [];

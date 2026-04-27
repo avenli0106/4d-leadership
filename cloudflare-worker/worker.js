@@ -326,7 +326,7 @@ var apiKey = getCookie('admin_key');
 
 function parseImport() {
   var text = document.getElementById('importArea').value;
-  var blocks = text.split(/\\n{2,}/).map(function(b){return b.trim()}).filter(function(b){return b.indexOf('【4D天性测评结果】') !== -1});
+  var blocks = text.split(/\\n{2,}/).map(function(b){return b.trim()}).filter(function(b){return b.indexOf('【4D天性测评结果') !== -1});
   importItems = [];
 
   for (var i = 0; i < blocks.length; i++) {

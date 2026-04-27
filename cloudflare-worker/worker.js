@@ -326,37 +326,71 @@ var apiKey = getCookie('admin_key');
 
 function parseImport() {
   var text = document.getElementById('importArea').value;
-  var blocks = text.split(/\\n{2,}/).map(function(b){return b.trim()}).filter(function(b){return b.indexOf('【4D天性测评结果') !== -1});
-  importItems = [];
+  var lines = text.split('\n');
 
+  // 按标题分块（不按空行，避免同一条消息被劈开）
+  var blocks = [];
+  var current = null;
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) continue;
+    if (line.indexOf('【4D天性测评结果') !== -1) {
+      if (current) blocks.push(current);
+      current = [];
+    }
+    if (current) current.push(line);
+  }
+  if (current) blocks.push(current);
+
+  importItems = [];
   for (var i = 0; i < blocks.length; i++) {
-    var block = blocks[i];
+    var blockLines = blocks[i];
     var item = {};
 
-    var nameMatch = block.match(/姓名[:：](.+)/);
-    if (nameMatch) item.username = nameMatch[1].trim();
+    for (var j = 0; j < blockLines.length; j++) {
+      var line = blockLines[j];
+      var colon = line.indexOf('：');
+      if (colon === -1) colon = line.indexOf(':');
 
-    var colorMatch = block.match(/主导色彩[:：](.+?)[（(]/);
-    if (colorMatch) item.mainColor = colorMatch[1].trim();
-
-    var greenMatch = block.match(/绿色[（(]培养型[)）][:：]\s*(\d+)/);
-    var yellowMatch = block.match(/黄色[（(]包融型[)）][:：]\s*(\d+)/);
-    var blueMatch = block.match(/蓝色[（(]展望型[)）][:：]\s*(\d+)/);
-    var orangeMatch = block.match(/橙色[（(]指导型[)）][:：]\s*(\d+)/);
-
-    if (greenMatch) item.green = parseInt(greenMatch[1]);
-    if (yellowMatch) item.yellow = parseInt(yellowMatch[1]);
-    if (blueMatch) item.blue = parseInt(blueMatch[1]);
-    if (orangeMatch) item.orange = parseInt(orangeMatch[1]);
-
-    var dimMatch = block.match(/情感[（(]F[)）][:：]\s*(\d+)/);
-    if (dimMatch) item.F = parseInt(dimMatch[1]);
-    var dimMatch2 = block.match(/逻辑[（(]T[)）][:：]\s*(\d+)/);
-    if (dimMatch2) item.T = parseInt(dimMatch2[1]);
-    var dimMatch3 = block.match(/直觉[（(]N[)）][:：]\s*(\d+)/);
-    if (dimMatch3) item.N = parseInt(dimMatch3[1]);
-    var dimMatch4 = block.match(/感觉[（(]S[)）][:：]\s*(\d+)/);
-    if (dimMatch4) item.S = parseInt(dimMatch4[1]);
+      if (line.indexOf('姓名') !== -1 && colon > -1) {
+        item.username = line.substring(colon + 1).trim();
+      }
+      if (line.indexOf('主导色彩') !== -1 && colon > -1) {
+        item.mainColor = line.substring(colon + 1).split('（')[0].trim();
+      }
+      if (line.indexOf('绿色') !== -1 && line.indexOf('培养型') !== -1 && colon > -1) {
+        var gm = line.substring(colon + 1).match(/\d+/);
+        if (gm) item.green = parseInt(gm[0]);
+      }
+      if (line.indexOf('黄色') !== -1 && line.indexOf('包融型') !== -1 && colon > -1) {
+        var ym = line.substring(colon + 1).match(/\d+/);
+        if (ym) item.yellow = parseInt(ym[0]);
+      }
+      if (line.indexOf('蓝色') !== -1 && line.indexOf('展望型') !== -1 && colon > -1) {
+        var bm = line.substring(colon + 1).match(/\d+/);
+        if (bm) item.blue = parseInt(bm[0]);
+      }
+      if (line.indexOf('橙色') !== -1 && line.indexOf('指导型') !== -1 && colon > -1) {
+        var om = line.substring(colon + 1).match(/\d+/);
+        if (om) item.orange = parseInt(om[0]);
+      }
+      if (line.indexOf('情感') !== -1 && line.indexOf('F') !== -1 && colon > -1) {
+        var fm = line.substring(colon + 1).match(/\d+/);
+        if (fm) item.F = parseInt(fm[0]);
+      }
+      if (line.indexOf('逻辑') !== -1 && line.indexOf('T') !== -1 && colon > -1) {
+        var tm = line.substring(colon + 1).match(/\d+/);
+        if (tm) item.T = parseInt(tm[0]);
+      }
+      if (line.indexOf('直觉') !== -1 && line.indexOf('N') !== -1 && colon > -1) {
+        var nm = line.substring(colon + 1).match(/\d+/);
+        if (nm) item.N = parseInt(nm[0]);
+      }
+      if (line.indexOf('感觉') !== -1 && line.indexOf('S') !== -1 && colon > -1) {
+        var sm = line.substring(colon + 1).match(/\d+/);
+        if (sm) item.S = parseInt(sm[0]);
+      }
+    }
 
     if (item.username && item.mainColor) {
       item.scores = { green: item.green || 0, yellow: item.yellow || 0, blue: item.blue || 0, orange: item.orange || 0 };

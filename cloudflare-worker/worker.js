@@ -359,36 +359,28 @@ function parseImport() {
         item.mainColor = line.substring(colon + 1).split('（')[0].trim();
       }
       if (line.indexOf('绿色') !== -1 && line.indexOf('培养型') !== -1 && colon > -1) {
-        var gm = line.substring(colon + 1).match(/\d+/);
-        if (gm) item.green = parseInt(gm[0]);
+        item.green = parseInt(line.substring(colon + 1)) || 0;
       }
       if (line.indexOf('黄色') !== -1 && line.indexOf('包融型') !== -1 && colon > -1) {
-        var ym = line.substring(colon + 1).match(/\d+/);
-        if (ym) item.yellow = parseInt(ym[0]);
+        item.yellow = parseInt(line.substring(colon + 1)) || 0;
       }
       if (line.indexOf('蓝色') !== -1 && line.indexOf('展望型') !== -1 && colon > -1) {
-        var bm = line.substring(colon + 1).match(/\d+/);
-        if (bm) item.blue = parseInt(bm[0]);
+        item.blue = parseInt(line.substring(colon + 1)) || 0;
       }
       if (line.indexOf('橙色') !== -1 && line.indexOf('指导型') !== -1 && colon > -1) {
-        var om = line.substring(colon + 1).match(/\d+/);
-        if (om) item.orange = parseInt(om[0]);
+        item.orange = parseInt(line.substring(colon + 1)) || 0;
       }
       if (line.indexOf('情感') !== -1 && line.indexOf('F') !== -1 && colon > -1) {
-        var fm = line.substring(colon + 1).match(/\d+/);
-        if (fm) item.F = parseInt(fm[0]);
+        item.F = parseInt(line.substring(colon + 1)) || 0;
       }
       if (line.indexOf('逻辑') !== -1 && line.indexOf('T') !== -1 && colon > -1) {
-        var tm = line.substring(colon + 1).match(/\d+/);
-        if (tm) item.T = parseInt(tm[0]);
+        item.T = parseInt(line.substring(colon + 1)) || 0;
       }
       if (line.indexOf('直觉') !== -1 && line.indexOf('N') !== -1 && colon > -1) {
-        var nm = line.substring(colon + 1).match(/\d+/);
-        if (nm) item.N = parseInt(nm[0]);
+        item.N = parseInt(line.substring(colon + 1)) || 0;
       }
       if (line.indexOf('感觉') !== -1 && line.indexOf('S') !== -1 && colon > -1) {
-        var sm = line.substring(colon + 1).match(/\d+/);
-        if (sm) item.S = parseInt(sm[0]);
+        item.S = parseInt(line.substring(colon + 1)) || 0;
       }
     }
 
